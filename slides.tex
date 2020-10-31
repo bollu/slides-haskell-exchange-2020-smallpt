@@ -39,6 +39,11 @@
 \newcommand{\raw}[1]{\mintinline{text}{#1}}
 \newcommand{\hs}[1]{\mintinline{hs}{#1}}
 \newcommand{\smallpt}{\texttt{smallpt}}
+\newcommand{\Ray}{\texttt{Ray}}
+\newcommand{\Refl}{\texttt{Refl}}
+\newcommand{\main}{\texttt{main}}
+\newcommand{\intersect}{\texttt{intersect}}
+\newcommand{\intersects}{\texttt{intersects}}
 \tolerance=1000
 \usetheme{Antibes}
 \author{Daven Scies, Siddharth Bhat}
@@ -116,16 +121,119 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 \end{frame}
 
 \begin{frame}[fragile]{Haskell: the first stab}
+How do we communicate the code? x(
+
+{\tiny
+\begin{minted}{hs}
+radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
+radiance ray@(Ray o d) depth xi =
+ case intersects ray of
+  (Nothing,_) -> return zerov
+  (Just (D# t),Sphere r p e c refl) -> do
+    let x = addv o (mulvs d t)
+        n = norm $ x `subv` p
+        nl = if isTrue# ((dot n d) <## 0.0##) then n else mulvs n (-1.0##)
+        pr = maxv c
+        depth' = depth + 1
+        continue f = case refl of
+          DIFF -> do
+            (CDouble (D# r)) <- erand48 xi
+            let r1 = (2.0## *## 3.141592653589793238##) *##  r
+            (CDouble (D# r2)) <- erand48 xi
+            let r2s = sqrtDouble# r2
+                w@(Vec wx _ _) = nl
+                u = norm (cross (if isTrue# (fabsDouble# wx >## 0.1##) then (Vec 0.0## 1.0## 0.0##) else (Vec 1.0## 0.0## 0.0##)) w)
+                v = w `cross` u
+                d' = norm $ (u`mulvs`(cosDouble# r1*##r2s)) `addv` (v`mulvs`(sinDouble# r1*##r2s)) `addv` (w`mulvs`sqrtDouble# (1.0## -##r2))
+            rad <- radiance (Ray x d') depth' xi
+            return $ e `addv` (f `mulv` rad)
+
+          SPEC -> do
+            let d' = d `subv` (n `mulvs` (2.0## *## (n`dot`d)))
+            rad <- radiance (Ray x d') depth' xi
+            return $ e `addv` (f `mulv` rad)
+
+          REFR -> do
+            let reflRay = Ray x (d `subv` (n `mulvs` (2.0## *## n`dot`d))) -- Ideal dielectric REFRACTION
+                into = n`dot`nl >## 0.0##                -- Ray from outside going in?
+                nc = 1.0##
+                nt = 1.5##
+                nnt = if isTrue# into then nc/##nt else nt/##nc
+                ddn= d`dot`nl
+                cos2t = 1.0##-##nnt*##nnt*##(1.0## -##ddn*##ddn)
+            if isTrue# (cos2t<##0.0##)    -- Total internal reflection
+              then do
+                rad <- radiance reflRay depth' xi
+                return $ e `addv` (f `mulv` rad)
+              else do
+                let tdir = norm (d`mulvs`nnt `subv` (n`mulvs`((if isTrue# into then 1.0## else -1.0##)*##(ddn*##nnt+##sqrtDouble# cos2t))))
+                    a=nt-##nc
+                    b=nt+##nc
+                    r0=a*##a/##(b*##b)
+                    c = 1.0## -## (if isTrue# into then -1.0## *## ddn else tdir`dot`n)
+                    re=r0 +## (1.0## -## r0) *## c *## c*## c *## c *## c 
+                    tr=1.0## -## re
+                    pp=0.25## +## 0.5## *## re
+                    rp=re /## pp
+                    tp=tr /## (1.0## -## pp)
+                rad <-
+                  if (depth > 2 )
+                    then do (CDouble (D# er)) <- erand48 xi
+                            if isTrue# (er<##pp) -- Russian roulette
+                              then (`mulvs` rp) `fmap` radiance reflRay depth' xi
+                              else (`mulvs` tp) `fmap` radiance (Ray x tdir) depth' xi
+                    else do rad0 <- (`mulvs` re) `fmap` radiance reflRay depth' xi
+                            rad1 <- (`mulvs` tr) `fmap` radiance(Ray x tdir) depth' xi
+                            return $ rad0 `addv` rad1
+                return $ e `addv` (f `mulv` rad)
+
+    if depth'>5
+      then do
+        (CDouble (D# er)) <- erand48 xi
+        if isTrue# (er <## pr) then continue $ c `mulvs` (1.0## /## pr)
+                  else return e
+      else continue 
+\end{minted}
+}
 \end{frame}
 
-\begin{frame}[fragile]{Optimisation 1: }
+\begin{frame}[fragile]{Optimisation 1: manual unrolling + unboxing }
 \end{frame}
 
-\begin{frame}[fragile]{Optimisation 2: }
+\begin{frame}[fragile]{Optimisation 2: Optimizing \Ray}
 \end{frame}
 
-\begin{frame}[fragile]{Optimisation 3: }
+\begin{frame}[fragile]{Optimisation 3: Newtyping \Refl}
 \end{frame}
+
+\begin{frame}[fragile]{Optimisation 4: Unbox tuple of \intersects}
+\end{frame}
+
+
+\begin{frame}[fragile]{Optimisation 3: Only expose \main}
+\end{frame}
+
+
+\begin{frame}[fragile]{Optimisation 3: Strictify \intersect}
+\end{frame}
+
+
+\begin{frame}[fragile]{Optimisation ...: Enable LLVM}
+\begin{minted}{udiff}
+diff --git a/smallpt-hs.cabal b/smallpt-hs.cabal
+index 83ec118..64d2788 100644
+--- a/smallpt-hs.cabal
++++ b/smallpt-hs.cabal
+@@ -26,4 +26,5 @@ executable smallpt-hs
+                        vector
+
+   -- no -Wall as type signature are purposely missing
++  ghc-options:         -O2 -rtsopts -fllvm
+-  ghc-options:         -O2 
+\end{minted}
+\end{frame}
+
+
 \begin{frame}[fragile]{Takeaways}
 \pause
 \begin{itemize}
