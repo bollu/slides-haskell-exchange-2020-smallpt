@@ -54,6 +54,22 @@
   pdfkeywords={},
   pdfsubject={},
   pdfcreator={Emacs 24.5.1 (Org mode 8.2.10)}}
+
+  \usepackage{xcolor}
+
+\usepackage{listings}
+
+\newcommand{\lstbg}[3][0pt]{{\fboxsep#1\colorbox{#2}{\strut #3}}}
+\lstdefinelanguage{diff}{
+  basicstyle=\ttfamily\small,
+  morecomment=[f][\lstbg{red!20}]-,
+  morecomment=[f][\lstbg{green!20}]+,
+  morecomment=[f][\textit]{@@},
+  %morecomment=[f][\textit]{---},
+  %morecomment=[f][\textit]{+++},
+}
+
+
 \begin{document}
 
 \maketitle
@@ -219,7 +235,9 @@ radiance ray@(Ray o d) depth xi =
 
 
 \begin{frame}[fragile]{Optimisation ...: Enable LLVM}
-\begin{minted}{udiff}
+
+
+\begin{minted}{diff}
 diff --git a/smallpt-hs.cabal b/smallpt-hs.cabal
 index 83ec118..64d2788 100644
 --- a/smallpt-hs.cabal
@@ -231,6 +249,20 @@ index 83ec118..64d2788 100644
 +  ghc-options:         -O2 -rtsopts -fllvm
 -  ghc-options:         -O2 
 \end{minted}
+
+
+% \begin{lstlisting}{language=diff}
+% diff --git a/smallpt-hs.cabal b/smallpt-hs.cabal
+% index 83ec118..64d2788 100644
+% --- a/smallpt-hs.cabal
+% +++ b/smallpt-hs.cabal
+% @@ -26,4 +26,5 @@ executable smallpt-hs
+%                         vector
+% 
+%    -- no -Wall as type signature are purposely missing
+% +  ghc-options:         -O2 -rtsopts -fllvm
+% -  ghc-options:         -O2 
+% \end{lstlisting}
 \end{frame}
 
 
