@@ -27,6 +27,7 @@
 \usepackage{changepage}
 \usepackage{lipsum}
 
+
 \hypersetup{colorlinks=true,
     linkcolor = blue,
     urlcolor  = blue,
@@ -73,6 +74,22 @@
 \begin{document}
 
 \maketitle
+
+\begin{frame}[fragile]{What is smallpt anyway?}
+\pause
+\begin{columns}
+\begin{column}{0.48\textwidth}
+\includegraphics[height=0.8\textwidth]{./smallpt-render.png}
+\end{column}
+\begin{column}{0.48\textwidth}
+\pause
+\begin{itemize}
+\item 100 LoC C demo of a raytracer \pause
+\item Perfect for an optimization case study
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
 
 \begin{frame}[fragile]{What is smallpt anyway?}
 % \begin{adjustwidth}{-5em}{-5em}
@@ -134,6 +151,28 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
     radiance(reflRay,depth,Xi)*Re+radiance(Ray(x,tdir),depth,Xi)*Tr); 
 } 
 \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Establishing baselines}
+\begin{minted}{hs}
+main :: IO ()
+main = smallptM 200 200 256
+
+smallptM :: Int -> Int -> Int -> IO ()
+smallptM !w !h !nsamps = do
+  -- ... processing
+  withFile "image.ppm" WriteMode $ \hdl -> do
+        hPrintf hdl "P3\n%d %d\n%d\n" w h (255::Int)
+        flip mapM_ [0..w*h-1] $ \i -> do
+          Vec r g b <- VM.unsafeRead c i
+          hPrintf hdl "%d %d %d " (toInt r) (toInt g) (toInt b)
+\end{minted}
+
+\pause
+\begin{itemize}
+\item \raw{Sha256} hash of the output image (deterministic)
+\end{itemize}
+
 \end{frame}
 
 \begin{frame}[fragile]{Haskell: the first stab}
@@ -214,15 +253,6 @@ radiance ray@(Ray o d) depth xi =
 \end{frame}
 
 
-\begin{frame}[fragile]{Establishing a baseling}
-{\tiny
-\begin{minted}{hs}
-\end{minted}
-}
-\begin{itemize}
-\end{itemize}
-\end{frame}
-
 \begin{frame}[fragile]{Optimisation 1: manual unrolling + unboxing }
 \end{frame}
 
@@ -246,7 +276,8 @@ radiance ray@(Ray o d) depth xi =
 
 \begin{frame}[fragile]{Optimisation ...: Enable LLVM}
 \begin{columns}
-\begin{column}
+\begin{column}{0.48\textwidth}
+{\footnotesize
 \begin{minted}{diff}
 diff --git a/smallpt-hs.cabal b/smallpt-hs.cabal
 index 83ec118..64d2788 100644
@@ -259,10 +290,12 @@ index 83ec118..64d2788 100644
 +  ghc-options:         -O2 -rtsopts -fllvm
 -  ghc-options:         -O2 
 \end{minted}
+}
 \end{column}
-\begin{column}[0.48\textwidth]
+\begin{column}{0.48\textwidth}
+Perf delta here
 \end{column}
-
+\end{columns}
 \end{frame}
 
 
@@ -272,8 +305,8 @@ index 83ec118..64d2788 100644
 \item Haskell can be fast \pause
 \item ... with a lot of work! \pause
 \item Accumulate optimizations to accrue performance wins. \pause
-\item \href{https://docs.google.com/spreadsheets/d/1YhZlDRGvnCtN8UQf_0ItmgRWI9MhL21HDTlBEKqgWHc/edit#gid=0}{Raw Google Sheet}
-\item \href{https://github.com/bollu/smallpths}{\texttt{github.com/bollu/smallpths}}
+\item \href{https://docs.google.com/spreadsheets/d/1YhZlDRGvnCtN8UQf_0ItmgRWI9MhL21HDTlBEKqgWHc/edit#gid=0}{Raw Google Sheet of our transformations}
+\item \href{https://github.com/bollu/smallpths}{\texttt{github.com/bollu/smallpt-opt}}
 \end{itemize}
 \end{frame}
 \end{document}
