@@ -46,7 +46,7 @@
 \newcommand{\intersects}{\texttt{intersects}}
 \tolerance=1000
 \usetheme{Antibes}
-\author{Daven Scies, Siddharth Bhat}
+\author{Davean Scies, Siddharth Bhat}
 \date{November 4th, 2020}
 \institute{Haskell Exchange}
 \title{Optimizing \smallpt}
@@ -213,6 +213,16 @@ radiance ray@(Ray o d) depth xi =
 }
 \end{frame}
 
+
+\begin{frame}[fragile]{Establishing a baseling}
+{\tiny
+\begin{minted}{hs}
+\end{minted}
+}
+\begin{itemize}
+\end{itemize}
+\end{frame}
+
 \begin{frame}[fragile]{Optimisation 1: manual unrolling + unboxing }
 \end{frame}
 
@@ -235,9 +245,8 @@ radiance ray@(Ray o d) depth xi =
 
 
 \begin{frame}[fragile]{Optimisation ...: Enable LLVM}
-
-
-
+\begin{columns}
+\begin{column}
 \begin{minted}{diff}
 diff --git a/smallpt-hs.cabal b/smallpt-hs.cabal
 index 83ec118..64d2788 100644
@@ -250,20 +259,10 @@ index 83ec118..64d2788 100644
 +  ghc-options:         -O2 -rtsopts -fllvm
 -  ghc-options:         -O2 
 \end{minted}
+\end{column}
+\begin{column}[0.48\textwidth]
+\end{column}
 
-
-% \begin{lstlisting}{language=diff}
-% diff --git a/smallpt-hs.cabal b/smallpt-hs.cabal
-% index 83ec118..64d2788 100644
-% --- a/smallpt-hs.cabal
-% +++ b/smallpt-hs.cabal
-% @@ -26,4 +26,5 @@ executable smallpt-hs
-%                         vector
-% 
-%    -- no -Wall as type signature are purposely missing
-% +  ghc-options:         -O2 -rtsopts -fllvm
-% -  ghc-options:         -O2 
-% \end{lstlisting}
 \end{frame}
 
 
