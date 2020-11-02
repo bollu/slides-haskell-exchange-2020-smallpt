@@ -1,5 +1,10 @@
 % Created 2018-06-21 Thu 12:30
 \documentclass[8pt]{beamer}
+\usepackage{pgfpages}
+
+% ENABLE THIS FOR NOTES
+% \setbeameroption{show notes on second screen=right} % Both
+
 \usepackage[sc,osf]{mathpazo}   % With old-style figures and real smallcaps.
 \linespread{1.025}              % Palatino leads a little more leading
 % Euler for math and numbers
@@ -90,6 +95,8 @@
 \end{column}
 \end{columns}
 \end{frame}
+
+\note{Note for first slide: what is smallpt anyway?}
 
 \begin{frame}[fragile]{What is smallpt anyway?}
 % \begin{adjustwidth}{-5em}{-5em}
@@ -582,10 +589,8 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 
 \begin{frame}[fragile]{Marking interesects' f parameters strict}
 % ed0b794
-TODO: overflow of page.
-\begin{minted}[fontsize=\tiny]{hs}
- intersects ray =
-     f (f (f (f (f (f (f (f (intersect ray sphLeft, sphLeft) sphRight) sphBack) sphFrnt) sphBotm) sphTop) sphMirr) sphGlas) sphLite
+\begin{minted}[fontsize=\small]{diff}
+ intersects ray = ...
    where
 -    f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
 +    f !(!k', !sp) !s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
@@ -650,8 +655,20 @@ TODO: This diff looks very bad
 +                    !rp=re/pp
 +                    !tp=tr/(1-pp)
 \end{minted}
-
 \end{frame}
+
+\begin{frame}[fragile]{Use LLVM backend}
+\begin{minted}{diff}
++packages: .
++
++package smallpt-opt
++  ghc-options: -fllvm
+\end{minted}
+\end{frame}
+
+\note{The LLVM backend can pick up assembly level optimizations
+      that GHC has missed. }
+
 
 \begin{frame}[fragile]{The view from the mountaintop}
 
