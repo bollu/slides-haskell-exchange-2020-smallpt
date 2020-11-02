@@ -183,7 +183,7 @@ smallptM !w !h !nsamps = do
 
 % 620027b45e40e5a4b18f36cabc70efe803f41a61
 \begin{frame}[fragile]{Haskell: the first stab ($1\times$)}
-\begin{minted}[fontsize=\small]{hs}
+\begin{minted}[fontsize=\tiny]{hs}
 radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
 radiance ray@(Ray o d) depth xi = case intersects ray of
   (Nothing,_) -> return zerov
@@ -204,12 +204,10 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
                 d' = norm $ (u`mulvs`(cos r1*r2s)) `addv` (v`mulvs`(sin r1*r2s)) `addv` (w`mulvs`sqrt (1-r2))
             rad <- radiance (Ray x d') depth' xi
             return $ e `addv` (f `mulv` rad)
-
           SPEC -> do
             let d' = d `subv` (n `mulvs` (2 * (n`dot`d)))
             rad <- radiance (Ray x d') depth' xi
             return $ e `addv` (f `mulv` rad)
-
           REFR -> do
             let reflRay = Ray x (d `subv` (n `mulvs` (2* n`dot`d))) -- Ideal dielectric REFRACTION
                 into = n`dot`nl > 0                -- Ray from outside going in?
@@ -793,7 +791,9 @@ TODO: This diff looks very bad
 
 \begin{frame}[fragile]{The view from the mountaintop}
 
+\begin{center}
 \includegraphics[height=0.6\textwidth]{./perfdata-gen.png}
+\end{center}
 
 %{\tiny
 %\begin{minted}{text}
