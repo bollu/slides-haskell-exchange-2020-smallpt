@@ -101,9 +101,6 @@
 \begin{frame}[fragile]{What is smallpt anyway?}
 % \begin{adjustwidth}{-5em}{-5em}
 \begin{minted}{cpp}
-#include <math.h>
-#include <stdlib.h>
-#include <stdio.h>
 struct Vec {      
   double x, y, z; // position, also color (r,g,b) 
   ... methods...
@@ -125,6 +122,138 @@ Sphere spheres[] = {//Scene: radius, position, emission, color, material
 % \end{adjustwidth}
 \end{frame}
 
+
+\begin{frame}[fragile]{What is smallpt anyway?}
+\footnotesize
+\begin{minted}{cpp}
+Vec radiance(const Ray &r, int depth, unsigned short *Xi){ 
+                                                                         
+                                                                         
+                                                                      
+                                                               
+                                                                           
+                                                                            
+                                                                            
+                                                                         
+                                                                   
+                                                                     
+                                                                      
+                                                           
+                                                                          
+                                                                            
+                                                                            
+                                                                           
+                                                                        
+                                                                          
+                                                          
+                                                                          
+                                                                           
+                                                                            
+                                                                            
+                                                                          
+                                                                         
+} 
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{What is smallpt anyway?}
+\footnotesize
+\begin{minted}{cpp}
+Vec radiance(const Ray &r, int depth, unsigned short *Xi){ 
+                                                                      
+                                                                      
+                                                                   
+                                                            
+                                                                        
+                                                                         
+                                       
+                                          
+                                                                
+                                                                  
+                                                                   
+                          radiance
+                                          
+                          radiance
+                                                                         
+                                                                        
+                                                                     
+                                         
+                          radiance
+                                                                       
+                                                                        
+                                                                         
+                                                                         
+    radiance                      radiance
+    radiance                      radiance
+} 
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{What is smallpt anyway?}
+\footnotesize
+\begin{minted}{cpp}
+Vec radiance(const Ray &r, int depth, unsigned short *Xi){ 
+                                                                      
+                                                                      
+                                                                   
+                                                            
+                                                                        
+                                                                         
+  if (         ) if (             )            else 
+  if (                ){                  
+                                                                
+                                                                  
+                                                                   
+                          radiance
+  } else if (                )            
+                          radiance
+                                                                         
+                                                                        
+                                                                     
+  if (                               )   
+                          radiance
+                                                                       
+                                                                        
+                                                                         
+                                                                         
+    radiance                      radiance
+    radiance                      radiance
+} 
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{What is smallpt anyway?}
+\footnotesize
+\begin{minted}{cpp}
+Vec radiance(const Ray &r, int depth, unsigned short *Xi){ 
+                                                                      
+                                                                      
+                                                                   
+                                                            
+  Vec x=r.o+r.d*t, n=(x-obj.p).norm(), nl=n.dot(r.d)<0?n:n*-1, f=obj.c; 
+                                                                         
+  if (         ) if (             )            else 
+  if (                ){                  
+                                                                
+                                                                  
+                                                                   
+                          radiance
+  } else if (                )            
+                          radiance
+                                                                         
+                                                                        
+                                                                     
+  if ((cos2t=1-nnt*nnt*(1-ddn*ddn))<0)
+                          radiance
+                                                                       
+                                                                        
+                                                                         
+                                                                         
+    radiance                      radiance
+    radiance                      radiance
+} 
+\end{minted}
+\end{frame}
 
 \begin{frame}[fragile]{What is smallpt anyway?}
 \footnotesize
@@ -159,8 +288,76 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 \end{minted}
 \end{frame}
 
-% 620027b45e40e5a4b18f36cabc70efe803f41a61
 \begin{frame}[fragile]{Initial Haskell Code ($1\times$)}
+% 620027b45e40e5a4b18f36cabc70efe803f41a61
+\begin{minted}[fontsize=\tiny]{hs}
+...
+radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
+radiance ray@(Ray o d) depth xi = case intersects ray of
+  (Nothing,_) -> return zerov
+  (Just t,Sphere _r p e c refl) -> do
+        ...                             
+        ...                        
+        ...                                                   
+        ...              
+        ...                     
+        continue f = case refl of
+          DIFF -> do
+            ...                                 
+            ...                
+            ...                 
+            ...                       
+            ...                                                                            
+            ...                   
+            ...                                                                                                 
+            rad <- radiance (Ray x d') depth' xi
+            return $ e `addv` (f `mulv` rad)
+          SPEC -> do
+            ...                                          
+            rad <- radiance (Ray x d') depth' xi
+            ...                             
+          REFR -> do
+            ...                                                                                      
+            ...                                                                    
+            ...          
+            ...            
+            ...                                       
+            ...                 
+            ...                                 
+            if ...
+              then do
+                rad <- radiance reflRay depth' xi
+                  ...                           
+                  ...
+                  ...                                                                                           
+                  ...      
+                  ...      
+                  ...           
+                  ...                                         
+                  ...                          
+                  ...      
+                  ...             
+                  ...       
+                  ...           
+                  ... 
+                  ...       
+                  if ...
+                            ...
+                            if ...
+                              then (`mulvs` rp) `fmap` radiance reflRay depth' xi
+                              else (`mulvs` tp) `fmap` radiance (Ray x tdir) depth' xi
+                    else do rad0 <- (`mulvs` re) `fmap` radiance reflRay depth' xi
+                            rad1 <- (`mulvs` tr) `fmap` radiance(Ray x tdir) depth' xi
+                  ...
+                  ...                              
+    if depth'>5
+    ...
+\end{minted}
+\raw{Sha256} hash of the output image --- \raw{4dac691082bb}
+\end{frame}
+
+\begin{frame}[fragile]{Initial Haskell Code ($1\times$)}
+% 620027b45e40e5a4b18f36cabc70efe803f41a61
 \begin{minted}[fontsize=\tiny]{hs}
 ...
 radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
@@ -222,11 +419,7 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
                 return $ e `addv` (f `mulv` rad)
 
     if depth'>5
-      then do
-        er <- erand48 xi
-        if er < pr then continue $ c `mulvs` (1/pr)
-                  else return e
-      else continue c
+    ...
 \end{minted}
 \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
 \end{frame}
