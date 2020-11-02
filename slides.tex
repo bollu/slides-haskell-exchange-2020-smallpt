@@ -168,73 +168,69 @@ smallptM !w !h !nsamps = do
           hPrintf hdl "%d %d %d " (toInt r) (toInt g) (toInt b)
 \end{minted}
 
-\pause
-\begin{itemize}
-\item \raw{Sha256} hash of the output image (deterministic)
-\end{itemize}
+% \pause
+% \begin{itemize}
+% \item \raw{Sha256} hash of the output image (deterministic)
+% \end{itemize}
 
 \end{frame}
 
+% 620027b45e40e5a4b18f36cabc70efe803f41a61
 \begin{frame}[fragile]{Haskell: the first stab}
-How do we communicate the code? x(
-
-{\tiny
 \begin{minted}{hs}
 radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
-radiance ray@(Ray o d) depth xi =
- case intersects ray of
+radiance ray@(Ray o d) depth xi = case intersects ray of
   (Nothing,_) -> return zerov
-  (Just (D# t),Sphere r p e c refl) -> do
-    let x = addv o (mulvs d t)
+  (Just t,Sphere _r p e c refl) -> do
+    let x = o `addv` (d `mulvs` t)
         n = norm $ x `subv` p
-        nl = if isTrue# ((dot n d) <## 0.0##) then n else mulvs n (-1.0##)
+        nl = if n `dot` d < 0 then n else n `mulvs` (-1)
         pr = maxv c
         depth' = depth + 1
         continue f = case refl of
           DIFF -> do
-            (CDouble (D# r)) <- erand48 xi
-            let r1 = (2.0## *## 3.141592653589793238##) *##  r
-            (CDouble (D# r2)) <- erand48 xi
-            let r2s = sqrtDouble# r2
+            r1 <- ((2*pi)*) `fmap` erand48 xi
+            r2 <- erand48 xi
+            let r2s = sqrt r2
                 w@(Vec wx _ _) = nl
-                u = norm (cross (if isTrue# (fabsDouble# wx >## 0.1##) then (Vec 0.0## 1.0## 0.0##) else (Vec 1.0## 0.0## 0.0##)) w)
+                u = norm $ (if abs wx > 0.1 then (Vec 0 1 0) else (Vec 1 0 0)) `cross` w
                 v = w `cross` u
-                d' = norm $ (u`mulvs`(cosDouble# r1*##r2s)) `addv` (v`mulvs`(sinDouble# r1*##r2s)) `addv` (w`mulvs`sqrtDouble# (1.0## -##r2))
+                d' = norm $ (u`mulvs`(cos r1*r2s)) `addv` (v`mulvs`(sin r1*r2s)) `addv` (w`mulvs`sqrt (1-r2))
             rad <- radiance (Ray x d') depth' xi
             return $ e `addv` (f `mulv` rad)
 
           SPEC -> do
-            let d' = d `subv` (n `mulvs` (2.0## *## (n`dot`d)))
+            let d' = d `subv` (n `mulvs` (2 * (n`dot`d)))
             rad <- radiance (Ray x d') depth' xi
             return $ e `addv` (f `mulv` rad)
 
           REFR -> do
-            let reflRay = Ray x (d `subv` (n `mulvs` (2.0## *## n`dot`d))) -- Ideal dielectric REFRACTION
-                into = n`dot`nl >## 0.0##                -- Ray from outside going in?
-                nc = 1.0##
-                nt = 1.5##
-                nnt = if isTrue# into then nc/##nt else nt/##nc
+            let reflRay = Ray x (d `subv` (n `mulvs` (2* n`dot`d))) -- Ideal dielectric REFRACTION
+                into = n`dot`nl > 0                -- Ray from outside going in?
+                nc = 1
+                nt = 1.5
+                nnt = if into then nc/nt else nt/nc
                 ddn= d`dot`nl
-                cos2t = 1.0##-##nnt*##nnt*##(1.0## -##ddn*##ddn)
-            if isTrue# (cos2t<##0.0##)    -- Total internal reflection
+                cos2t = 1-nnt*nnt*(1-ddn*ddn)
+            if cos2t<0    -- Total internal reflection
               then do
                 rad <- radiance reflRay depth' xi
                 return $ e `addv` (f `mulv` rad)
               else do
-                let tdir = norm (d`mulvs`nnt `subv` (n`mulvs`((if isTrue# into then 1.0## else -1.0##)*##(ddn*##nnt+##sqrtDouble# cos2t))))
-                    a=nt-##nc
-                    b=nt+##nc
-                    r0=a*##a/##(b*##b)
-                    c = 1.0## -## (if isTrue# into then -1.0## *## ddn else tdir`dot`n)
-                    re=r0 +## (1.0## -## r0) *## c *## c*## c *## c *## c 
-                    tr=1.0## -## re
-                    pp=0.25## +## 0.5## *## re
-                    rp=re /## pp
-                    tp=tr /## (1.0## -## pp)
+                let tdir = norm $ (d`mulvs`nnt `subv` (n`mulvs`((if into then 1 else -1)*(ddn*nnt+sqrt cos2t))))
+                    a=nt-nc
+                    b=nt+nc
+                    r0=a*a/(b*b)
+                    c' = 1-(if into then -ddn else tdir`dot`n)
+                    re=r0+(1-r0)*c'*c'*c'*c'*c'
+                    tr=1-re
+                    pp=0.25+0.5*re
+                    rp=re/pp
+                    tp=tr/(1-pp)
                 rad <-
-                  if (depth > 2 )
-                    then do (CDouble (D# er)) <- erand48 xi
-                            if isTrue# (er<##pp) -- Russian roulette
+                  if depth>2
+                    then do er <- erand48 xi
+                            if er<pp -- Russian roulette
                               then (`mulvs` rp) `fmap` radiance reflRay depth' xi
                               else (`mulvs` tp) `fmap` radiance (Ray x tdir) depth' xi
                     else do rad0 <- (`mulvs` re) `fmap` radiance reflRay depth' xi
@@ -244,58 +240,438 @@ radiance ray@(Ray o d) depth xi =
 
     if depth'>5
       then do
-        (CDouble (D# er)) <- erand48 xi
-        if isTrue# (er <## pr) then continue $ c `mulvs` (1.0## /## pr)
+        er <- erand48 xi
+        if er < pr then continue $ c `mulvs` (1/pr)
                   else return e
-      else continue 
+      else continue c
 \end{minted}
-}
 \end{frame}
 
 
-\begin{frame}[fragile]{Optimisation 1: manual unrolling + unboxing }
-\end{frame}
-
-\begin{frame}[fragile]{Optimisation 2: Optimizing \Ray}
-\end{frame}
-
-\begin{frame}[fragile]{Optimisation 3: Newtyping \Refl}
-\end{frame}
-
-\begin{frame}[fragile]{Optimisation 4: Unbox tuple of \intersects}
-\end{frame}
-
-
-\begin{frame}[fragile]{Optimisation 3: Only expose \main}
-\end{frame}
-
-
-\begin{frame}[fragile]{Optimisation 3: Strictify \intersect}
-\end{frame}
-
-
-\begin{frame}[fragile]{Optimisation ...: Enable LLVM}
-\begin{columns}
-\begin{column}{0.48\textwidth}
-{\footnotesize
+\begin{frame}[fragile]{Restrict export list to `main`}
 \begin{minted}{diff}
-diff --git a/smallpt-hs.cabal b/smallpt-hs.cabal
-index 83ec118..64d2788 100644
---- a/smallpt-hs.cabal
-+++ b/smallpt-hs.cabal
-@@ -26,4 +26,5 @@ executable smallpt-hs
-                        vector
-
-   -- no -Wall as type signature are purposely missing
-+  ghc-options:         -O2 -rtsopts -fllvm
--  ghc-options:         -O2 
+-module Main where
++module Main (main) where
 \end{minted}
-}
-\end{column}
-\begin{column}{0.48\textwidth}
-Perf delta here
-\end{column}
-\end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{Mark entries of Ray and Sphere as UNPACK and Strict.}
+
+\begin{minted}{diff}
+-data Ray = Ray Vec Vec -- origin, direction
++data Ray = Ray {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec -- origin, direction
+
+ data Refl = DIFF | SPEC | REFR -- material types, used in radiance
+
+ -- radius, position, emission, color, reflection
+-data Sphere = Sphere Double Vec Vec Vec !Refl
++data Sphere = Sphere {-# UNPACK #-} !Double {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec !Refl
+\end{minted}
+\end{frame}
+
+
+\begin{frame}[fragile]{Use a pattern synonym to unpack Refl in Sphere.}
+% e1819a6c0420d0083071d9df25b7337d8ee7bae0
+\begin{minted}{diff}
++{-# LANGUAGE PatternSynonyms #-}
+\end{minted}
+
+
+\begin{minted}{diff}
+% e77b26f
+-data Refl = DIFF | SPEC | REFR -- material types, used in radiance
++newtype Refl = Refl Int  -- material types, used in radiance
++pattern DIFF,SPEC,REFR :: Refl
++pattern DIFF = Refl 0
++pattern SPEC = Refl 1
++pattern REFR = Refl 2
++{-# COMPLETE DIFF, SPEC, REFR #-}
+
+ -- radius, position, emission, color, reflection
+-data Sphere = Sphere {-# UNPACK #-} !Double {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec !Refl
++data Sphere = Sphere {-# UNPACK #-} !Double {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec {-# UNPACK #-} !Refl
+
+ intersect :: Ray -> Sphere -> Maybe Double
+ intersect (Ray o d) (Sphere r p _e _c _refl) =
+ \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Change from maximum on a list to max}
+% e77b26f
+\begin{minted}{hs}
+-maxv (Vec a b c) = maximum [a,b,c]
++maxv (Vec a b c) = max a (max b c)
+\end{minted}
+
+\begin{minted}{hs}
+@@ -84,7 +85,6 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
+     let x = o `addv` (d `mulvs` t)
+         n = norm $ x `subv` p
+         nl = if n `dot` d < 0 then n else n `mulvs` (-1)
+-        pr = maxv c
+         depth' = depth + 1
+         continue f = case refl of
+           DIFF -> do
+@@ -140,6 +140,7 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
+     if depth'>5
+       then do
+         er <- erand48 xi
++        let !pr = maxv c
+\end{minted}
+
+\end{frame}
+
+\begin{frame}[fragile]{Convert erand48 to pure Haskell}
+% 48aeb46
+\begin{minted}{hs}
+-radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
++radiance :: Ray -> Int -> IORef Word64 -> IO Vec
+ radiance ray@(Ray o d) depth xi = case intersects ray of
+   (Nothing,_) -> return zerov
+   (Just t,Sphere _r p e c refl) -> do
+@@ -153,9 +153,8 @@ smallpt w h nsamps = do
+       cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
+       cy = norm (cx `cross` dir) `mulvs` 0.5135
+   c <- VM.replicate (w * h) zerov
+-  allocaArray 3 $ \xi ->
+-      flip mapM_ [0..h-1] $ \y -> do
+-        --hPrintf stderr "\rRendering (%d spp) %5.2f%%" (samps*4::Int) (100.0*fromIntegral y/(fromIntegral h-1)::Double)
++  xi <- newIORef 0
++  flip mapM_ [0..h-1] $ \y -> do
+       writeXi xi y
+\end{minted}
+
+\begin{minted}{hs}
+TODO: add better version of erand48 into this commit
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Change erand48 to IORefU.}
+% 36eb49e
+
+\begin{minted}{hs}
+-radiance :: Ray -> Int -> IORef Word64 -> IO Vec
++radiance :: Ray -> Int -> IORefU Word64 -> IO Vec
+ radiance ray@(Ray o d) depth xi = case intersects ray of
+   (Nothing,_) -> return zerov
+   (Just t,Sphere _r p e c refl) -> do
+@@ -153,7 +154,7 @@ smallpt w h nsamps = do
+       cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
+       cy = norm (cx `cross` dir) `mulvs` 0.5135
+   c <- VM.replicate (w * h) zerov
+-  xi <- newIORef 0
++  xi <- newIORefU 0
+   flip mapM_ [0..h-1] $ \y -> do
+       writeXi xi y
+       flip mapM_ [0..w-1] $ \x -> do
+@@ -181,8 +182,8 @@ smallpt w h nsamps = do
+           Vec r g b <- VM.unsafeRead c i
+           hPrintf hdl "%d %d %d " (toInt r) (toInt g) (toInt b)
+ 
+-writeXi :: IORef Word64 -> Int -> IO ()
+-writeXi !xi !y = writeIORef xi (mkErand48Seed' y)
++writeXi :: IORefU Word64 -> Int -> IO ()
++writeXi !xi !y = writeIORefU xi (mkErand48Seed' y)
+\end{minted}
+\begin{minted}{hs}
+TODO: change to new shorter erand48
+\end{minted}
+\end{frame}
+
+
+\begin{frame}[fragile]{Rewrite the remaining IORef into a foldM}
+% c114ace
+\begin{minted}{hs}
+TODO
+\end{minted}
+\end{frame}
+
+
+\begin{frame}[fragile]{Remove the Data.Vector.Mutable by being purer}
+% 44299aa
+\begin{minted}{hs}
+-            r <- newIORef zerov
+-            flip mapM_ [0..samps-1] $ \_s -> do
++            Vec rr rg rb <- (\f -> foldM f zerov [0..samps-1]) $ \ !r _s -> do
+               r1 <- (2*) `fmap` erand48 xi
+               let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
+               r2 <- (2*) `fmap` erand48 xi
+@@ -171,9 +170,8 @@ smallpt w h nsamps = do
+                       (cy `mulvs` (((sy + 0.5 + dy)/2 + fromIntegral y)/fromIntegral h - 0.5)) `addv` dir
+               rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
+               -- Camera rays are pushed forward ^^^^^ to start in interior
+-              modifyIORef r (`addv` (rad `mulvs` (1 / fromIntegral samps)))
++              pure (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
+             ci <- VM.unsafeRead c i
+-            Vec rr rg rb <- readIORef r
+             VM.unsafeWrite c i $ ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Set everything in smallpt to be strict}
+% e62177b
+\begin{minted}{hs}
+-  let samps = nsamps `div` 4
+-      org = Vec 50 52 295.6
+-      dir = norm $ Vec 0 (-0.042612) (-1)
+-      cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
+-      cy = norm (cx `cross` dir) `mulvs` 0.5135
++  let !samps = nsamps `div` 4
++      !org = Vec 50 52 295.6
++      !dir = norm $ Vec 0 (-0.042612) (-1)
++      !cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
++      !cy = norm (cx `cross` dir) `mulvs` 0.5135
+
+\end{minted}
+
+\begin{minted}{hs}
+-              r1 <- (2*) `fmap` erand48 xi
+-              let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
+-              r2 <- (2*) `fmap` erand48 xi
+-              let dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
+-                  d = (cx `mulvs` (((sx + 0.5 + dx)/2 + fromIntegral x)/fromIntegral w - 0.5)) `addv`
+-                      (cy `mulvs` (((sy + 0.5 + dy)/2 + fromIntegral y)/fromIntegral h - 0.5)) `addv` dir
+-              rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
++              !r1 <- (2*) `fmap` erand48 xi
++              let !dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
++              !r2 <- (2*) `fmap` erand48 xi
++              let !dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
++                  !d = (cx `mulvs` (((sx + 0.5 + dx)/2 + fromIntegral x)/fromIntegral w - 0.5)) `addv`
++                       (cy `mulvs` (((sy + 0.5 + dy)/2 + fromIntegral y)/fromIntegral h - 0.5)) `addv` dir
++              !rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
+\end{minted}
+
+\begin{minted}{diff}
+-              pure (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
+-            pure $ ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
++              pure $! (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
++            pure $! ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
+\end{minted}
+
+
+\end{frame}
+
+\begin{frame}[fragile]{Reduce to only effectful strictnesses}
+% 585c5cb
+\begin{minted}{hs}
+-  let !samps = nsamps `div` 4
+-      !org = Vec 50 52 295.6
+-      !dir = norm $ Vec 0 (-0.042612) (-1)
+-      !cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
+-      !cy = norm (cx `cross` dir) `mulvs` 0.5135
++  let samps = nsamps `div` 4
++      org = Vec 50 52 295.6
++      dir = norm $ Vec 0 (-0.042612) (-1)
++      cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
++      cy = norm (cx `cross` dir) `mulvs` 0.5135
+\end{minted}
+\begin{minted}{hs}
+-              !r1 <- (2*) `fmap` erand48 xi
++              r1 <- (2*) `fmap` erand48 xi
+\end{minted}
+
+\begin{minted}{hs}
+-              !r2 <- (2*) `fmap` erand48 xi
++              r2 <- (2*) `fmap` erand48 xi
+\end{minted}
+
+\begin{minted}{hs}
+-              !rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
++              rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
+\end{minted}
+
+\begin{minted}{hs}
+-              pure $! (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
+-            pure $! ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
++              pure $ (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
++            pure $ ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
+\end{minted}
+
+\end{frame}
+
+\begin{frame}[fragile]{Remove Maybe from intersect(s)}
+% 09f43c7
+\begin{minted}{hs}
+-intersect :: Ray -> Sphere -> Maybe Double
+-intersect (Ray o d) (Sphere r p _e _c _refl) =
+-  if det<0 then Nothing else f (b-sdet) (b+sdet)
+-  where op = p `subv` o
+-        eps = 1e-4
+-        b = op `dot` d
+-        det = b*b - (op `dot` op) + r*r
+-        sdet = sqrt det
+-        f a s = if a>eps then Just a else if s>eps then Just s else Nothing
+-
++intersect :: Ray -> Sphere -> Double
++intersect (Ray o d) (Sphere r p _e _c _refl) =
++  if det<0 then (1/0.0) else f (b-sdet) (b+sdet)
++  where op = p `subv` o
++        eps = 1e-4
++        b = op `dot` d
++        det = b*b - (op `dot` op) + r*r
++        sdet = sqrt det
++        f a s = if a>eps then a else if s>eps then s else (1/0.0)
++
+
+-intersects :: Ray -> (Maybe Double, Sphere)
++intersects :: Ray -> (Double, Sphere)
+ intersects ray = (k, s)
+-  where (k,s) = foldl' f (Nothing,undefined) spheres
+-        f (k',sp) s' = case (k',intersect ray s') of
+-                  (Nothing,Just x) -> (Just x,s')
+-                  (Just y,Just x) | x < y -> (Just x,s')
+-                  _ -> (k',sp)
++  where (k,s) = foldl' f (1/0.0,undefined) spheres
++        f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
+ 
+ radiance :: Ray -> Int -> STRefU s Word64 -> ST s Vec
+ radiance ray@(Ray o d) depth xi = case intersects ray of
+-  (Nothing,_) -> return zerov
+-  (Just t,Sphere _r p e c refl) -> do
++  (t,_) | t == (1/0.0) -> return zerov
++  (t,Sphere _r p e c refl) -> do
+     let x = o `addv` (d `mulvs` t)
+         n = norm $ x `subv` p
+         nl = if n `dot` d < 0 then n else n `mulvs` (-1)
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Hand unroll the fold in intersects}
+% 4f28fcc
+
+\begin{minted}{diff}
+ intersects :: Ray -> (Double, Sphere)
+-intersects ray = (k, s)
+-  where (k,s) = foldl' f (1/0.0,undefined) spheres
+-        f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
++intersects ray =
++    f (f (f (f (f (f (f (f (intersect ray sphLeft, sphLeft) sphRight) sphBack) sphFrnt) sphBotm) sphTop) sphMirr) sphGlas) sphLite
++  where
++    f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
+\end{minted}
+
+\begin{minted}{diff}
+-spheres :: [Sphere]
+-spheres = let s = Sphere ; z = zerov ; (.*) = mulvs ; v = Vec in
+-  [ s 1e5 (v (1e5+1) 40.8 81.6)    z (v 0.75 0.25 0.25) DIFF --Left
+-  , s 1e5 (v (-1e5+99) 40.8 81.6)  z (v 0.25 0.25 0.75) DIFF --Rght
+-  , s 1e5 (v 50 40.8 1e5)          z (v 0.75 0.75 0.75) DIFF --Back
+-  , s 1e5 (v 50 40.8 (-1e5+170))   z z                  DIFF --Frnt
+-  , s 1e5 (v 50 1e5 81.6)          z (v 0.75 0.75 0.75) DIFF --Botm
+-  , s 1e5 (v 50 (-1e5+81.6) 81.6)  z (v 0.75 0.75 0.75) DIFF --Top
+-  , s 16.5(v 27 16.5 47)           z ((v 1 1 1).* 0.999) SPEC --Mirr
+-  , s 16.5(v 73 16.5 78)           z ((v 1 1 1).* 0.999) REFR --Glas
+-  , s 600 (v 50 (681.6-0.27) 81.6) (v 12 12 12)       z DIFF]--Lite
++sphLeft, sphRight, sphBack, sphFrnt, sphBotm, sphTop, sphMirr, sphGlas, sphLite :: Sphere
++sphLeft  = Sphere 1e5  (Vec (1e5+1) 40.8 81.6)    zerov (Vec 0.75 0.25 0.25) DIFF --Left
++sphRight = Sphere 1e5  (Vec (-1e5+99) 40.8 81.6)  zerov (Vec 0.25 0.25 0.75) DIFF --Rght
++sphBack  = Sphere 1e5  (Vec 50 40.8 1e5)          zerov (Vec 0.75 0.75 0.75) DIFF --Back
++sphFrnt  = Sphere 1e5  (Vec 50 40.8 (-1e5+170))   zerov zerov              DIFF --Frnt
++sphBotm  = Sphere 1e5  (Vec 50 1e5 81.6)          zerov (Vec 0.75 0.75 0.75) DIFF --Botm
++sphTop   = Sphere 1e5  (Vec 50 (-1e5+81.6) 81.6)  zerov (Vec 0.75 0.75 0.75) DIFF --Top
++sphMirr  = Sphere 16.5 (Vec 27 16.5 47)           zerov (Vec 0.999 0.999 0.999) SPEC --Mirr
++sphGlas  = Sphere 16.5 (Vec 73 16.5 78)           zerov (Vec 0.999 0.999 0.999) REFR --Glas
++sphLite  = Sphere 600  (Vec 50 (681.6-0.27) 81.6) (Vec 12 12 12)       zerov DIFF --Lite
+\end{minted}
+
+\end{frame}
+
+\begin{frame}[fragile]{Marking interesects' f parameters strict}
+% ed0b794
+
+\begin{minted}{hs}
+ intersects ray =
+     f (f (f (f (f (f (f (f (intersect ray sphLeft, sphLeft) sphRight) sphBack) sphFrnt) sphBotm) sphTop) sphMirr) sphGlas) sphLite
+   where
+-    f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
++    f !(!k', !sp) !s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
+\end{minted}
+\end{frame}
+
+
+\begin{frame}[fragile]{Strategic application of strictness}
+% 8309e4a
+\begin{minted}{diff}
+-  if det<0 then (1/0.0) else f (b-sdet) (b+sdet)
+-  where op = p `subv` o
+-        eps = 1e-4
+-        b = op `dot` d
+-        det = b*b - (op `dot` op) + r*r
+-        sdet = sqrt det
+-        f a s = if a>eps then a else if s>eps then s else (1/0.0)
++  if det<0
++  then (1/0.0)
++  else
++    let !eps = 1e-4
++        !sdet = sqrt det
++        !a = b-sdet
++        !s = b+sdet
++    in if a>eps then a else if s>eps then s else (1/0.0)
++  where
++    !det = b*b - (op `dot` op) + r*r
++    !b = op `dot` d
++    !op = p `subv` o
+\end{minted}
+
+\begin{minted}{hs}
+-  (t,_) | t == (1/0.0) -> return zerov
+-  (t,Sphere _r p e c refl) -> do
+-    let x = o `addv` (d `mulvs` t)
+-        n = norm $ x `subv` p
+-        nl = if n `dot` d < 0 then n else n `mulvs` (-1)
+-        depth' = depth + 1
++  (!t,_) | t == (1/0.0) -> return zerov
++  (!t,!Sphere _r p e c refl) -> do
++    let !x = o `addv` (d `mulvs` t)
++        !n = norm $ x `subv` p
++        !nl = if n `dot` d < 0 then n else n `mulvs` (-1)
++        !depth' = depth + 1
+\end{minted}
+\begin{minted}{hs}
+-                    a=nt-nc
+-                    b=nt+nc
+-                    r0=a*a/(b*b)
+-                    c' = 1-(if into then -ddn else tdir`dot`n)
+-                    re=r0+(1-r0)*c'*c'*c'*c'*c'
+-                    tr=1-re
+-                    pp=0.25+0.5*re
+-                    rp=re/pp
+-                    tp=tr/(1-pp)
++                    !r0=4.0e-2
++                    !c' = 1-(if into then -ddn else tdir`dot`n)
++                    !re=r0+(1-r0)*c'*c'*c'*c'*c'
++                    !tr=1-re
++                    !pp=0.25+0.5*re
++                    !rp=re/pp
++                    !tp=tr/(1-pp)
+\end{minted}
+
+\end{frame}
+
+\begin{frame}[fragile]{The view from the mountaintop}
+
+\includegraphics[height=0.6\textwidth]{./perfdata-gen.png}
+
+%{\tiny
+%\begin{minted}{text}
+%64ca171 Replace CDouble with Double because its just a newtype.
+%4678326 Restrict the export list to 'main'.
+%1ad231a Mark entries of Ray and Sphere as UNPACK and Strict.
+%e1819a6 Use a pattern synonym to unpack Refl in Sphere.
+%e77b26f Change from maximum on a list to max.
+%48aeb46 Convert erand48 to pure Haskell.
+%36eb49e Change erand48 to IORefU.
+%c114ace Rewrite the remaining IORef into a foldM.
+%44299aa Remove the Data.Vector.Mutable by being purer.
+%e62177b Set everything in smallpt to be strict.
+%585c5cb Reduce to only effectful strictnesses.
+%09f43c7 Remove Maybe from intersect(s)
+%4f28fcc Hand unroll the fold in intersects.
+%ed0b794 Marking interesects' f parameters strict.
+%8309e4a Strategic application of strictness.
+%7be5b4b Shorted erand48.
+%\end{minted}
+%}
 \end{frame}
 
 
