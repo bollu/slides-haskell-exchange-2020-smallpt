@@ -46,7 +46,7 @@
 \newcommand{\intersect}{\texttt{intersect}}
 \newcommand{\intersects}{\texttt{intersects}}
 \tolerance=1000
-\usetheme{Antibes}
+% \usetheme{Antibes}
 \author{Davean Scies, Siddharth Bhat}
 \date{November 4th, 2020}
 \institute{Haskell Exchange}
@@ -154,7 +154,7 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 \end{frame}
 
 \begin{frame}[fragile]{Establishing baselines}
-\begin{minted}{hs}
+\begin{minted}[fontsize=\small]{hs}
 main :: IO ()
 main = smallptM 200 200 256
 
@@ -177,7 +177,7 @@ smallptM !w !h !nsamps = do
 
 % 620027b45e40e5a4b18f36cabc70efe803f41a61
 \begin{frame}[fragile]{Haskell: the first stab}
-\begin{minted}{hs}
+\begin{minted}[fontsize=\small]{hs}
 radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
 radiance ray@(Ray o d) depth xi = case intersects ray of
   (Nothing,_) -> return zerov
@@ -257,7 +257,7 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 
 \begin{frame}[fragile]{Mark entries of Ray and Sphere as UNPACK and Strict.}
 
-\begin{minted}{diff}
+\begin{minted}[fontsize=\small]{diff}
 -data Ray = Ray Vec Vec -- origin, direction
 +data Ray = Ray {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec -- origin, direction
 
@@ -265,20 +265,23 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 
  -- radius, position, emission, color, reflection
 -data Sphere = Sphere Double Vec Vec Vec !Refl
-+data Sphere = Sphere {-# UNPACK #-} !Double {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec !Refl
++data Sphere = Sphere {-# UNPACK #-} !Double 
++                     {-# UNPACK #-} !Vec 
++                     {-# UNPACK #-} !Vec 
++                     {-# UNPACK #-} !Vec !Refl
 \end{minted}
 \end{frame}
 
 
 \begin{frame}[fragile]{Use a pattern synonym to unpack Refl in Sphere.}
-% e1819a6c0420d0083071d9df25b7337d8ee7bae0
-\begin{minted}{diff}
+% e1819a6
+
+\begin{minted}[fontsize=\small]{diff}
 +{-# LANGUAGE PatternSynonyms #-}
 \end{minted}
 
 
-\begin{minted}{diff}
-% e77b26f
+\begin{minted}[fontsize=\small]{diff}
 -data Refl = DIFF | SPEC | REFR -- material types, used in radiance
 +newtype Refl = Refl Int  -- material types, used in radiance
 +pattern DIFF,SPEC,REFR :: Refl
@@ -288,22 +291,23 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 +{-# COMPLETE DIFF, SPEC, REFR #-}
 
  -- radius, position, emission, color, reflection
--data Sphere = Sphere {-# UNPACK #-} !Double {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec !Refl
-+data Sphere = Sphere {-# UNPACK #-} !Double {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec {-# UNPACK #-} !Refl
+ data Sphere = Sphere {-# UNPACK #-} !Double 
+                      {-# UNPACK #-} !Vec
+                      {-# UNPACK #-} !Vec 
+-                     {-# UNPACK #-} !Vec !Refl
++                     {-# UNPACK #-} !Vec {-# UNPACK #-} !Refl
 
- intersect :: Ray -> Sphere -> Maybe Double
- intersect (Ray o d) (Sphere r p _e _c _refl) =
  \end{minted}
 \end{frame}
 
 \begin{frame}[fragile]{Change from maximum on a list to max}
 % e77b26f
-\begin{minted}{hs}
+\begin{minted}{diff}
 -maxv (Vec a b c) = maximum [a,b,c]
 +maxv (Vec a b c) = max a (max b c)
 \end{minted}
 
-\begin{minted}{hs}
+\begin{minted}{diff}
 @@ -84,7 +85,6 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
      let x = o `addv` (d `mulvs` t)
          n = norm $ x `subv` p
@@ -323,7 +327,7 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 
 \begin{frame}[fragile]{Convert erand48 to pure Haskell}
 % 48aeb46
-\begin{minted}{hs}
+\begin{minted}[fontsize=\small]{diff}
 -radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
 +radiance :: Ray -> Int -> IORef Word64 -> IO Vec
  radiance ray@(Ray o d) depth xi = case intersects ray of
@@ -335,7 +339,6 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
    c <- VM.replicate (w * h) zerov
 -  allocaArray 3 $ \xi ->
 -      flip mapM_ [0..h-1] $ \y -> do
--        --hPrintf stderr "\rRendering (%d spp) %5.2f%%" (samps*4::Int) (100.0*fromIntegral y/(fromIntegral h-1)::Double)
 +  xi <- newIORef 0
 +  flip mapM_ [0..h-1] $ \y -> do
        writeXi xi y
@@ -349,7 +352,7 @@ TODO: add better version of erand48 into this commit
 \begin{frame}[fragile]{Change erand48 to IORefU.}
 % 36eb49e
 
-\begin{minted}{hs}
+\begin{minted}{diff}
 -radiance :: Ray -> Int -> IORef Word64 -> IO Vec
 +radiance :: Ray -> Int -> IORefU Word64 -> IO Vec
  radiance ray@(Ray o d) depth xi = case intersects ray of
@@ -381,15 +384,11 @@ TODO: change to new shorter erand48
 
 \begin{frame}[fragile]{Rewrite the remaining IORef into a foldM}
 % c114ace
-\begin{minted}{hs}
-TODO
-\end{minted}
-\end{frame}
-
-
-\begin{frame}[fragile]{Remove the Data.Vector.Mutable by being purer}
-% 44299aa
-\begin{minted}{hs}
+\begin{minted}[fontsize=\small]{diff}
+@@ -161,8 +161,7 @@ smallpt w h nsamps = do
+         let i = (h-y-1) * w + x
+         flip mapM_ [0..1] $ \sy -> do
+           flip mapM_ [0..1] $ \sx -> do
 -            r <- newIORef zerov
 -            flip mapM_ [0..samps-1] $ \_s -> do
 +            Vec rr rg rb <- (\f -> foldM f zerov [0..samps-1]) $ \ !r _s -> do
@@ -397,20 +396,36 @@ TODO
                let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
                r2 <- (2*) `fmap` erand48 xi
 @@ -171,9 +170,8 @@ smallpt w h nsamps = do
-                       (cy `mulvs` (((sy + 0.5 + dy)/2 + fromIntegral y)/fromIntegral h - 0.5)) `addv` dir
+-              modifyIORef r (`addv` (rad `mulvs` (1 / fromIntegral samps)))
++              pure (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
+             ci <- VM.unsafeRead c i
+-            Vec rr rg rb <- readIORef r
+\end{minted}
+\end{frame}
+
+
+\begin{frame}[fragile]{Remove the Data.Vector.Mutable by being purer}
+% 44299aa
+\begin{minted}[fontsize=\small]{diff}
+-            r <- newIORef zerov
+-            flip mapM_ [0..samps-1] $ \_s -> do
++            Vec rr rg rb <- (\f -> foldM f zerov [0..samps-1]) $ \ !r _s -> do
+               r1 <- (2*) `fmap` erand48 xi
+               let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
+               r2 <- (2*) `fmap` erand48 xi
+@@ -171,9 +170,8 @@ smallpt w h nsamps = do
                rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
                -- Camera rays are pushed forward ^^^^^ to start in interior
 -              modifyIORef r (`addv` (rad `mulvs` (1 / fromIntegral samps)))
 +              pure (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
              ci <- VM.unsafeRead c i
 -            Vec rr rg rb <- readIORef r
-             VM.unsafeWrite c i $ ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
 \end{minted}
 \end{frame}
 
 \begin{frame}[fragile]{Set everything in smallpt to be strict}
 % e62177b
-\begin{minted}{hs}
+\begin{minted}[fontsize=\tiny]{diff}
 -  let samps = nsamps `div` 4
 -      org = Vec 50 52 295.6
 -      dir = norm $ Vec 0 (-0.042612) (-1)
@@ -424,7 +439,7 @@ TODO
 
 \end{minted}
 
-\begin{minted}{hs}
+\begin{minted}[fontsize=\tiny]{diff}
 -              r1 <- (2*) `fmap` erand48 xi
 -              let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
 -              r2 <- (2*) `fmap` erand48 xi
@@ -441,7 +456,7 @@ TODO
 +              !rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
 \end{minted}
 
-\begin{minted}{diff}
+\begin{minted}[fontsize=\tiny]{diff}
 -              pure (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
 -            pure $ ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
 +              pure $! (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
@@ -453,7 +468,7 @@ TODO
 
 \begin{frame}[fragile]{Reduce to only effectful strictnesses}
 % 585c5cb
-\begin{minted}{hs}
+\begin{minted}[fontsize=\small]{diff}
 -  let !samps = nsamps `div` 4
 -      !org = Vec 50 52 295.6
 -      !dir = norm $ Vec 0 (-0.042612) (-1)
@@ -465,22 +480,22 @@ TODO
 +      cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
 +      cy = norm (cx `cross` dir) `mulvs` 0.5135
 \end{minted}
-\begin{minted}{hs}
+\begin{minted}[fontsize=\small]{diff}
 -              !r1 <- (2*) `fmap` erand48 xi
 +              r1 <- (2*) `fmap` erand48 xi
 \end{minted}
 
-\begin{minted}{hs}
+\begin{minted}[fontsize=\small]{hs}
 -              !r2 <- (2*) `fmap` erand48 xi
 +              r2 <- (2*) `fmap` erand48 xi
 \end{minted}
 
-\begin{minted}{hs}
+\begin{minted}[fontsize=\small]{diff}
 -              !rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
 +              rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
 \end{minted}
 
-\begin{minted}{hs}
+\begin{minted}[fontsize=\small]{hs}
 -              pure $! (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
 -            pure $! ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
 +              pure $ (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
@@ -491,27 +506,19 @@ TODO
 
 \begin{frame}[fragile]{Remove Maybe from intersect(s)}
 % 09f43c7
-\begin{minted}{hs}
+\begin{minted}[fontsize=\small]{diff}
 -intersect :: Ray -> Sphere -> Maybe Double
--intersect (Ray o d) (Sphere r p _e _c _refl) =
--  if det<0 then Nothing else f (b-sdet) (b+sdet)
--  where op = p `subv` o
--        eps = 1e-4
--        b = op `dot` d
--        det = b*b - (op `dot` op) + r*r
--        sdet = sqrt det
--        f a s = if a>eps then Just a else if s>eps then Just s else Nothing
--
 +intersect :: Ray -> Sphere -> Double
-+intersect (Ray o d) (Sphere r p _e _c _refl) =
+intersect (Ray o d) (Sphere r p _e _c _refl) =
+-  if det<0 then Nothing else f (b-sdet) (b+sdet)
 +  if det<0 then (1/0.0) else f (b-sdet) (b+sdet)
-+  where op = p `subv` o
-+        eps = 1e-4
-+        b = op `dot` d
-+        det = b*b - (op `dot` op) + r*r
-+        sdet = sqrt det
+   where op = p `subv` o
+        eps = 1e-4
+         b = op `dot` d
+         det = b*b - (op `dot` op) + r*r
+         sdet = sqrt det
+-        f a s = if a>eps then Just a else if s>eps then Just s else Nothing
 +        f a s = if a>eps then a else if s>eps then s else (1/0.0)
-+
 
 -intersects :: Ray -> (Maybe Double, Sphere)
 +intersects :: Ray -> (Double, Sphere)
@@ -530,16 +537,13 @@ TODO
 -  (Just t,Sphere _r p e c refl) -> do
 +  (t,_) | t == (1/0.0) -> return zerov
 +  (t,Sphere _r p e c refl) -> do
-     let x = o `addv` (d `mulvs` t)
-         n = norm $ x `subv` p
-         nl = if n `dot` d < 0 then n else n `mulvs` (-1)
 \end{minted}
 \end{frame}
 
 \begin{frame}[fragile]{Hand unroll the fold in intersects}
 % 4f28fcc
 
-\begin{minted}{diff}
+\begin{minted}[fontsize=\tiny]{diff}
  intersects :: Ray -> (Double, Sphere)
 -intersects ray = (k, s)
 -  where (k,s) = foldl' f (1/0.0,undefined) spheres
@@ -550,7 +554,7 @@ TODO
 +    f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
 \end{minted}
 
-\begin{minted}{diff}
+\begin{minted}[fontsize=\small]{diff}
 -spheres :: [Sphere]
 -spheres = let s = Sphere ; z = zerov ; (.*) = mulvs ; v = Vec in
 -  [ s 1e5 (v (1e5+1) 40.8 81.6)    z (v 0.75 0.25 0.25) DIFF --Left
@@ -578,8 +582,8 @@ TODO
 
 \begin{frame}[fragile]{Marking interesects' f parameters strict}
 % ed0b794
-
-\begin{minted}{hs}
+TODO: overflow of page.
+\begin{minted}[fontsize=\tiny]{hs}
  intersects ray =
      f (f (f (f (f (f (f (f (intersect ray sphLeft, sphLeft) sphRight) sphBack) sphFrnt) sphBotm) sphTop) sphMirr) sphGlas) sphLite
    where
@@ -590,8 +594,9 @@ TODO
 
 
 \begin{frame}[fragile]{Strategic application of strictness}
+TODO: This diff looks very bad
 % 8309e4a
-\begin{minted}{diff}
+\begin{minted}[fontsize=\tiny]{diff}
 -  if det<0 then (1/0.0) else f (b-sdet) (b+sdet)
 -  where op = p `subv` o
 -        eps = 1e-4
@@ -613,7 +618,7 @@ TODO
 +    !op = p `subv` o
 \end{minted}
 
-\begin{minted}{hs}
+\begin{minted}[fontsize=\tiny]{diff}
 -  (t,_) | t == (1/0.0) -> return zerov
 -  (t,Sphere _r p e c refl) -> do
 -    let x = o `addv` (d `mulvs` t)
@@ -627,7 +632,7 @@ TODO
 +        !nl = if n `dot` d < 0 then n else n `mulvs` (-1)
 +        !depth' = depth + 1
 \end{minted}
-\begin{minted}{hs}
+\begin{minted}[fontsize=\tiny]{diff}
 -                    a=nt-nc
 -                    b=nt+nc
 -                    r0=a*a/(b*b)
@@ -681,8 +686,8 @@ TODO
 \item Haskell can be fast \pause
 \item ... with a lot of work! \pause
 \item Accumulate optimizations to accrue performance wins. \pause
-\item \href{https://docs.google.com/spreadsheets/d/1YhZlDRGvnCtN8UQf_0ItmgRWI9MhL21HDTlBEKqgWHc/edit#gid=0}{Raw Google Sheet of our transformations}
-\item \href{https://github.com/bollu/smallpths}{\texttt{github.com/bollu/smallpt-opt}}
+%\item \href{https://docs.google.com/spreadsheets/d/1YhZlDRGvnCtN8UQf_0ItmgRWI9MhL21HDTlBEKqgWHc/edit#gid=0}{Raw Google Sheet of our transformations}
+%\item \href{https://github.com/bollu/smallpths}{\texttt{github.com/bollu/smallpt-opt}}
 \end{itemize}
 \end{frame}
 \end{document}
