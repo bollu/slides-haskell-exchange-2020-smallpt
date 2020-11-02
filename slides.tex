@@ -121,7 +121,6 @@ Sphere spheres[] = {//Scene: radius, position, emission, color, material
   Sphere(1e5, Vec( 1e5+1,40.8,81.6), Vec(),Vec(.75,.25,.25),DIFF),//Left 
   ... initialization ...
 }; 
-inline bool intersect(const Ray &r, double &t, int &id) 
 \end{minted}
 % \end{adjustwidth}
 \end{frame}
@@ -158,27 +157,6 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
     radiance(reflRay,depth,Xi)*Re+radiance(Ray(x,tdir),depth,Xi)*Tr); 
 } 
 \end{minted}
-\end{frame}
-
-\begin{frame}[fragile]{Establishing baselines}
-\begin{minted}[fontsize=\small]{hs}
-main :: IO ()
-main = smallptM 200 200 256
-
-smallptM :: Int -> Int -> Int -> IO ()
-smallptM !w !h !nsamps = do
-  -- ... processing
-  withFile "image.ppm" WriteMode $ \hdl -> do
-        hPrintf hdl "P3\n%d %d\n%d\n" w h (255::Int)
-        flip mapM_ [0..w*h-1] $ \i -> do
-          Vec r g b <- VM.unsafeRead c i
-          hPrintf hdl "%d %d %d " (toInt r) (toInt g) (toInt b)
-\end{minted}
-
-\pause
-\begin{itemize}
-\item \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
-\end{itemize}
 \end{frame}
 
 % 620027b45e40e5a4b18f36cabc70efe803f41a61
@@ -250,6 +228,7 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
                   else return e
       else continue c
 \end{minted}
+\raw{Sha256} hash of the output image --- \raw{4dac691082bb}
 \end{frame}
 
 
@@ -344,11 +323,8 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 
 \end{frame}
 
-\note{This is a finicky optimization. At first it actually benched worse
-    than the maximum version. The strictness on the binding is required
-    for reliable performance, but it seemed sensible to only do that
-    where it was actually used since its in a single branch and no
-    longer lazy.}
+\note{finicky optimization. GHC does not evaluate at compile time, making
+      optimizations like these necessary}
 
 
 \begin{frame}[fragile]{Convert \texttt{erand48} to pure Haskell ($1.09\times$)}
@@ -368,10 +344,6 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 +  xi <- newIORef 0
 +  flip mapM_ [0..h-1] $ \y -> do
        writeXi xi y
-\end{minted}
-
-\begin{minted}{hs}
-TODO: add better version of erand48 into this commit
 \end{minted}
 \end{frame}
 
@@ -401,9 +373,6 @@ TODO: add better version of erand48 into this commit
 -writeXi !xi !y = writeIORef xi (mkErand48Seed' y)
 +writeXi :: IORefU Word64 -> Int -> IO ()
 +writeXi !xi !y = writeIORefU xi (mkErand48Seed' y)
-\end{minted}
-\begin{minted}{hs}
-TODO: change to new shorter erand48
 \end{minted}
 \end{frame}
 
@@ -442,16 +411,10 @@ TODO: change to new shorter erand48
 
 \begin{frame}[fragile]{Remove the \texttt{Data.Vector.Mutable} by being purer ($1.17\times$)}
 % 44299aa
-\begin{minted}{diff}
+\begin{minted}[fontsize=\small]{diff}
 -radiance :: Ray -> Int -> IORefU Word64 -> IO Vec
 +radiance :: Ray -> Int -> STRefU s Word64 -> ST s Vec
- radiance ray@(Ray o d) depth xi = case intersects ray of
-   (Nothing,_) -> return zerov
-   (Just t,Sphere _r p e c refl) -> do
-@@ -153,14 +154,10 @@ smallpt w h nsamps = do
-       dir = norm $ Vec 0 (-0.042612) (-1)
-       cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
-       cy = norm (cx `cross` dir) `mulvs` 0.5135
+...
 -  c <- VM.replicate (w * h) zerov
 -  xi <- newIORefU 0
 -  flip mapM_ [0..h-1] $ \y -> do
@@ -463,36 +426,10 @@ TODO: change to new shorter erand48
 +      img = (`concatMap` [(h-1),(h-2)..0]) $ \y -> runST $ do
 +        xi <- newSTRefU (mkErand48Seed' y)
 +        forM [0..w-1] $ \x -> do
-+          (\pf -> foldM pf zerov [(sy, sx) | sy <- [0,1], sx <- [0,1]]) $ \ci (sy, sx) -> do
-
+...
 \end{minted}
 
-\begin{minted}{diff}
--            ci <- VM.unsafeRead c i
--            VM.unsafeWrite c i $ ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
-+            pure $ ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
-\end{minted}
-
-\begin{minted}{diff}
-   withFile "image.ppm" WriteMode $ \hdl -> do
-         hPrintf hdl "P3\n%d %d\n%d\n" w h (255::Int)
--        flip mapM_ [0..w*h-1] $ \i -> do
--          Vec r g b <- VM.unsafeRead c i
-+        forM_ img $ \(Vec r g b) -> do
-           hPrintf hdl "%d %d %d " (toInt r) (toInt g) (toInt b)
-\end{minted}
-
-\begin{minted}{diff}
--writeXi :: IORefU Word64 -> Int -> IO ()
--writeXi !xi !y = writeIORefU xi (mkErand48Seed' y)
--
- mkErand48Seed' :: Int -> Word64
- mkErand48Seed' y =
-   let yw = fromIntegral y; prod = (yw * yw * yw)
-@@ -208,11 +200,11 @@ erand48' s =
-       d_word = (0x3ff0000000000000) .|. (out' `unsafeShiftL` 4)
-   in (s' , (castWord64ToDouble d_word) - 1.0)
-
+\begin{minted}[fontsize=\small]{diff}
 -erand48 :: IORefU Word64 -> IO Double
 +erand48 :: STRefU s Word64 -> ST s Double
  erand48 !t =  do
@@ -521,9 +458,9 @@ TODO: change to new shorter erand48
     even be clearer.
 }
 
-\begin{frame}[fragile]{Set everything in smallpt to be strict ($1.17\times$)}
+\begin{frame}[fragile]{Set \textbf{everything} in smallpt to be strict ($1.17\times$)}
 % e62177b
-\begin{minted}[fontsize=\tiny]{diff}
+\begin{minted}[fontsize=\small]{diff}
 -  let samps = nsamps `div` 4
 -      org = Vec 50 52 295.6
 -      dir = norm $ Vec 0 (-0.042612) (-1)
@@ -534,31 +471,20 @@ TODO: change to new shorter erand48
 +      !dir = norm $ Vec 0 (-0.042612) (-1)
 +      !cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
 +      !cy = norm (cx `cross` dir) `mulvs` 0.5135
-
 \end{minted}
 
-\begin{minted}[fontsize=\tiny]{diff}
--              r1 <- (2*) `fmap` erand48 xi
--              let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
--              r2 <- (2*) `fmap` erand48 xi
--              let dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
--                  d = (cx `mulvs` (((sx + 0.5 + dx)/2 + fromIntegral x)/fromIntegral w - 0.5)) `addv`
--                      (cy `mulvs` (((sy + 0.5 + dy)/2 + fromIntegral y)/fromIntegral h - 0.5)) `addv` dir
--              rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
-+              !r1 <- (2*) `fmap` erand48 xi
-+              let !dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
-+              !r2 <- (2*) `fmap` erand48 xi
-+              let !dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
-+                  !d = (cx `mulvs` (((sx + 0.5 + dx)/2 + fromIntegral x)/fromIntegral w - 0.5)) `addv`
-+                       (cy `mulvs` (((sy + 0.5 + dy)/2 + fromIntegral y)/fromIntegral h - 0.5)) `addv` dir
-+              !rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
-\end{minted}
-
-\begin{minted}[fontsize=\tiny]{diff}
--              pure (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
--            pure $ ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
-+              pure $! (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
-+            pure $! ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
+\begin{minted}[fontsize=\small]{diff}
+-  r1 <- (2*) `fmap` erand48 xi
+-  let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
+-  r2 <- (2*) `fmap` erand48 xi
+-  let dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
+-      d = ...
+-  rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
++  !r1 <- (2*) `fmap` erand48 xi
++  let !dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
++  !r2 <- (2*) `fmap` erand48 xi
++  let !dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
++      !d = ...
 \end{minted}
 \end{frame}
 
@@ -656,14 +582,14 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 \begin{frame}[fragile]{Hand unroll the fold in intersects ($1.35\times$)}
 % 4f28fcc
 
-\begin{minted}[fontsize=\tiny]{diff}
+\begin{minted}[fontsize=\small]{diff}
  intersects :: Ray -> (Double, Sphere)
 -intersects ray = (k, s)
 -  where (k,s) = foldl' f (1/0.0,undefined) spheres
 +intersects ray =
 +    f (... (f (f (intersect ray sphLeft, sphLeft) sphRight) ...)
 +  where
-        f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
+     f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
 \end{minted}
 
 \note{This removes the list and this a potential level of indirections
@@ -675,11 +601,11 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 -spheres = let s = Sphere ; z = zerov ; (.*) = mulvs ; v = Vec in
 -  [ s 1e5 (v (1e5+1) 40.8 81.6)    z (v 0.75 0.25 0.25) DIFF --Left
 -  , s 1e5 (v (-1e5+99) 40.8 81.6)  z (v 0.25 0.25 0.75) DIFF --Rght
-   ...
+...
 
 +sphLeft, sphRight, ...  :: Sphere
-+sphLeft  = Sphere 1e5  (Vec (1e5+1) 40.8 81.6)    zerov (Vec 0.75 0.25 0.25) DIFF --Left
-+sphRight = Sphere 1e5  (Vec (-1e5+99) 40.8 81.6)  zerov (Vec 0.25 0.25 0.75) DIFF --Rght
++sphLeft  = Sphere 1e5  (Vec (1e5+1) 40.8 81.6)    zerov (Vec 0.75 0.25 0.25) DIFF
++sphRight = Sphere 1e5  (Vec (-1e5+99) 40.8 81.6)  zerov (Vec 0.25 0.25 0.75) DIFF
 ...
 \end{minted}
 
@@ -701,7 +627,6 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 
 
 \begin{frame}[fragile]{Strategic application of strictness ($1.49\times$)}
-TODO: This diff looks very bad
 % 8309e4a
 % reading core, 
 \begin{minted}[fontsize=\tiny]{diff}
@@ -812,7 +737,6 @@ TODO: This diff looks very bad
 
 
 \begin{frame}[fragile]{Takeaways}
-\pause
 \begin{itemize}
 \item Haskell can be fast, given some sensitivity to performance.
 \item Having performance leads to a faster baseline
