@@ -182,8 +182,9 @@ smallptM !w !h !nsamps = do
 \end{frame}
 
 % 620027b45e40e5a4b18f36cabc70efe803f41a61
-\begin{frame}[fragile]{Haskell: the first stab ($1\times$)}
+\begin{frame}[fragile]{Initial Haskell Code ($1\times$)}
 \begin{minted}[fontsize=\tiny]{hs}
+...
 radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
 radiance ray@(Ray o d) depth xi = case intersects ray of
   (Nothing,_) -> return zerov
@@ -659,11 +660,10 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
  intersects :: Ray -> (Double, Sphere)
 -intersects ray = (k, s)
 -  where (k,s) = foldl' f (1/0.0,undefined) spheres
--        f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
 +intersects ray =
-+    f (f (f (f (f (f (f (f (intersect ray sphLeft, sphLeft) sphRight) sphBack) sphFrnt) sphBotm) sphTop) sphMirr) sphGlas) sphLite
++    f (... (f (f (intersect ray sphLeft, sphLeft) sphRight) ...)
 +  where
-+    f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
+        f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
 \end{minted}
 
 \note{This removes the list and this a potential level of indirections
@@ -675,29 +675,19 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 -spheres = let s = Sphere ; z = zerov ; (.*) = mulvs ; v = Vec in
 -  [ s 1e5 (v (1e5+1) 40.8 81.6)    z (v 0.75 0.25 0.25) DIFF --Left
 -  , s 1e5 (v (-1e5+99) 40.8 81.6)  z (v 0.25 0.25 0.75) DIFF --Rght
--  , s 1e5 (v 50 40.8 1e5)          z (v 0.75 0.75 0.75) DIFF --Back
--  , s 1e5 (v 50 40.8 (-1e5+170))   z z                  DIFF --Frnt
--  , s 1e5 (v 50 1e5 81.6)          z (v 0.75 0.75 0.75) DIFF --Botm
--  , s 1e5 (v 50 (-1e5+81.6) 81.6)  z (v 0.75 0.75 0.75) DIFF --Top
--  , s 16.5(v 27 16.5 47)           z ((v 1 1 1).* 0.999) SPEC --Mirr
--  , s 16.5(v 73 16.5 78)           z ((v 1 1 1).* 0.999) REFR --Glas
--  , s 600 (v 50 (681.6-0.27) 81.6) (v 12 12 12)       z DIFF]--Lite
-+sphLeft, sphRight, sphBack, sphFrnt, sphBotm, sphTop, sphMirr, sphGlas, sphLite :: Sphere
+   ...
+
++sphLeft, sphRight, ...  :: Sphere
 +sphLeft  = Sphere 1e5  (Vec (1e5+1) 40.8 81.6)    zerov (Vec 0.75 0.25 0.25) DIFF --Left
 +sphRight = Sphere 1e5  (Vec (-1e5+99) 40.8 81.6)  zerov (Vec 0.25 0.25 0.75) DIFF --Rght
-+sphBack  = Sphere 1e5  (Vec 50 40.8 1e5)          zerov (Vec 0.75 0.75 0.75) DIFF --Back
-+sphFrnt  = Sphere 1e5  (Vec 50 40.8 (-1e5+170))   zerov zerov              DIFF --Frnt
-+sphBotm  = Sphere 1e5  (Vec 50 1e5 81.6)          zerov (Vec 0.75 0.75 0.75) DIFF --Botm
-+sphTop   = Sphere 1e5  (Vec 50 (-1e5+81.6) 81.6)  zerov (Vec 0.75 0.75 0.75) DIFF --Top
-+sphMirr  = Sphere 16.5 (Vec 27 16.5 47)           zerov (Vec 0.999 0.999 0.999) SPEC --Mirr
-+sphGlas  = Sphere 16.5 (Vec 73 16.5 78)           zerov (Vec 0.999 0.999 0.999) REFR --Glas
-+sphLite  = Sphere 600  (Vec 50 (681.6-0.27) 81.6) (Vec 12 12 12)       zerov DIFF --Lite
+...
 \end{minted}
 
 \end{frame}
 
-\begin{frame}[fragile]{Marking \texttt{interesects' f} parameters strict ($1.41\times$)}
+\begin{frame}[fragile]{Marking \texttt{interesects f} parameters strict ($1.41\times$)}
 % ed0b794
+% TODO: move text to the left
 \begin{minted}[fontsize=\small]{diff}
  intersects ray = ...
    where
@@ -713,6 +703,7 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 \begin{frame}[fragile]{Strategic application of strictness ($1.49\times$)}
 TODO: This diff looks very bad
 % 8309e4a
+% reading core, 
 \begin{minted}[fontsize=\tiny]{diff}
 -  if det<0 then (1/0.0) else f (b-sdet) (b+sdet)
 -  where op = p `subv` o
@@ -786,7 +777,8 @@ TODO: This diff looks very bad
 \end{frame}
 
 \note{The LLVM backend can pick up assembly level optimizations
-      that GHC has missed. }
+      that GHC has missed. Some types of code runs worse with LLVM, but
+      since this code is number crunching heavy, this does well.}
 
 
 \begin{frame}[fragile]{The view from the mountaintop}
@@ -822,9 +814,12 @@ TODO: This diff looks very bad
 \begin{frame}[fragile]{Takeaways}
 \pause
 \begin{itemize}
-\item Haskell can be fast \pause
-\item ... with a lot of work! \pause
-\item Accumulate optimizations to accrue performance wins. \pause
+\item Haskell can be fast, given some sensitivity to performance.
+\item Having performance leads to a faster baseline
+      (unpacking, bang-patterns, \texttt{max},
+      \texttt{LLVM} by default, exporting \texttt{main}, \dots)
+\item Some others (unrolling \texttt{f}) is more subtle.
+\item Accumulate optimizations to accrue performance wins.
 %\item \href{https://docs.google.com/spreadsheets/d/1YhZlDRGvnCtN8UQf_0ItmgRWI9MhL21HDTlBEKqgWHc/edit#gid=0}{Raw Google Sheet of our transformations}
 %\item \href{https://github.com/bollu/smallpths}{\texttt{github.com/bollu/smallpt-opt}}
 \end{itemize}
