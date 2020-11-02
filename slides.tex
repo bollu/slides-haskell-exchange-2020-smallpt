@@ -3,7 +3,7 @@
 \usepackage{pgfpages}
 
 % ENABLE THIS FOR NOTES
-% \setbeameroption{show notes on second screen=right} % Both
+\setbeameroption{show notes on second screen=right} % Both
 
 \usepackage[sc,osf]{mathpazo}   % With old-style figures and real smallcaps.
 \linespread{1.025}              % Palatino leads a little more leading
@@ -262,6 +262,10 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 \end{minted}
 \end{frame}
 
+\note{Knowing what functions are used how enables many optimizations
+    that could otherwise would be detrimental or unsound
+    (eg: changing signatures based on demands)}
+
 \begin{frame}[fragile]{Mark entries of Ray and Sphere as UNPACK and Strict.}
 
 \begin{minted}[fontsize=\small]{diff}
@@ -278,6 +282,8 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 +                     {-# UNPACK #-} !Vec !Refl
 \end{minted}
 \end{frame}
+
+\note{This optimization removes indirection and laziness. }
 
 
 \begin{frame}[fragile]{Use a pattern synonym to unpack Refl in Sphere.}
@@ -307,6 +313,12 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
  \end{minted}
 \end{frame}
 
+\note{    While we weren't able to unpack Refl in the last step because it
+    is a sum type, we can if we use a trick modeled after an C Enum.
+    The use of COMPLETE is unsafe here because other values could be
+    constructed. For this small example though we rely on the fact
+    that we create values of Refl via the patterns.}
+
 \begin{frame}[fragile]{Change from maximum on a list to max}
 % e77b26f
 \begin{minted}{diff}
@@ -331,6 +343,13 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 \end{minted}
 
 \end{frame}
+
+\note{This is a finicky optimization. At first it actually benched worse
+    than the maximum version. The strictness on the binding is required
+    for reliable performance, but it seemed sensible to only do that
+    where it was actually used since its in a single branch and no
+    longer lazy.}
+
 
 \begin{frame}[fragile]{Convert erand48 to pure Haskell}
 % 48aeb46
@@ -388,6 +407,9 @@ TODO: change to new shorter erand48
 \end{minted}
 \end{frame}
 
+\note{This just removes yet one more layer of indirection, but on a
+    fairly hot function this time.}
+
 
 \begin{frame}[fragile]{Rewrite the remaining IORef into a foldM}
 % c114ace
@@ -410,25 +432,94 @@ TODO: change to new shorter erand48
 \end{minted}
 \end{frame}
 
+\note{
+    This removes another source of mutability, and potentially
+    indirection. This use of an IORef wasn't very Haskelly, so unlike
+    erand48 where the IORef was in a way appropriate, it made more
+    sense to just remove this one.
+}
+
 
 \begin{frame}[fragile]{Remove the Data.Vector.Mutable by being purer}
 % 44299aa
-\begin{minted}[fontsize=\small]{diff}
--            r <- newIORef zerov
--            flip mapM_ [0..samps-1] $ \_s -> do
-+            Vec rr rg rb <- (\f -> foldM f zerov [0..samps-1]) $ \ !r _s -> do
-               r1 <- (2*) `fmap` erand48 xi
-               let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
-               r2 <- (2*) `fmap` erand48 xi
-@@ -171,9 +170,8 @@ smallpt w h nsamps = do
-               rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
-               -- Camera rays are pushed forward ^^^^^ to start in interior
--              modifyIORef r (`addv` (rad `mulvs` (1 / fromIntegral samps)))
-+              pure (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
-             ci <- VM.unsafeRead c i
--            Vec rr rg rb <- readIORef r
+\begin{minted}{diff}
+-radiance :: Ray -> Int -> IORefU Word64 -> IO Vec
++radiance :: Ray -> Int -> STRefU s Word64 -> ST s Vec
+ radiance ray@(Ray o d) depth xi = case intersects ray of
+   (Nothing,_) -> return zerov
+   (Just t,Sphere _r p e c refl) -> do
+@@ -153,14 +154,10 @@ smallpt w h nsamps = do
+       dir = norm $ Vec 0 (-0.042612) (-1)
+       cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
+       cy = norm (cx `cross` dir) `mulvs` 0.5135
+-  c <- VM.replicate (w * h) zerov
+-  xi <- newIORefU 0
+-  flip mapM_ [0..h-1] $ \y -> do
+-      writeXi xi y
+-      flip mapM_ [0..w-1] $ \x -> do
+-        let i = (h-y-1) * w + x
+-        flip mapM_ [0..1] $ \sy -> do
+-          flip mapM_ [0..1] $ \sx -> do
++      img = (`concatMap` [(h-1),(h-2)..0]) $ \y -> runST $ do
++        xi <- newSTRefU (mkErand48Seed' y)
++        forM [0..w-1] $ \x -> do
++          (\pf -> foldM pf zerov [(sy, sx) | sy <- [0,1], sx <- [0,1]]) $ \ci (sy, sx) -> do
+
+\end{minted}
+
+\begin{minted}{diff}
+-            ci <- VM.unsafeRead c i
+-            VM.unsafeWrite c i $ ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
++            pure $ ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
+\end{minted}
+
+\begin{minted}{diff}
+   withFile "image.ppm" WriteMode $ \hdl -> do
+         hPrintf hdl "P3\n%d %d\n%d\n" w h (255::Int)
+-        flip mapM_ [0..w*h-1] $ \i -> do
+-          Vec r g b <- VM.unsafeRead c i
++        forM_ img $ \(Vec r g b) -> do
+           hPrintf hdl "%d %d %d " (toInt r) (toInt g) (toInt b)
+\end{minted}
+
+\begin{minted}{diff}
+-writeXi :: IORefU Word64 -> Int -> IO ()
+-writeXi !xi !y = writeIORefU xi (mkErand48Seed' y)
+-
+ mkErand48Seed' :: Int -> Word64
+ mkErand48Seed' y =
+   let yw = fromIntegral y; prod = (yw * yw * yw)
+@@ -208,11 +200,11 @@ erand48' s =
+       d_word = (0x3ff0000000000000) .|. (out' `unsafeShiftL` 4)
+   in (s' , (castWord64ToDouble d_word) - 1.0)
+
+-erand48 :: IORefU Word64 -> IO Double
++erand48 :: STRefU s Word64 -> ST s Double
+ erand48 !t =  do
+-  r <- readIORefU t
++  r <- readSTRefU t
+   let (r', d) = erand48' r
+-  writeIORefU t r'
++  writeSTRefU t r'
+   pure d
 \end{minted}
 \end{frame}
+
+\note{
+    Theres a few things going on here. First we stop being in IO and
+    create a new STRefU for each Y row. This is slightly more
+    allocation but breaks the dependency between y rows which would
+    be useful if parallel. Second remove the vector, and instead
+    directly accumulate into the result. Third, since we're generating
+    results directly, we just produce a list, and don't bother with
+    the 'i' variable placement, which means we want to reorder which
+    y rows we generate first. So we generate them in the reverse order
+    (but this does potentially change edge cases and parameter
+    validation should be added to cover).
+
+    This notably removes a decent number of lines of code and might
+    even be clearer.
+}
 
 \begin{frame}[fragile]{Set everything in smallpt to be strict}
 % e62177b
@@ -469,9 +560,10 @@ TODO: change to new shorter erand48
 +              pure $! (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
 +            pure $! ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
 \end{minted}
-
-
 \end{frame}
+
+\note{This does make a difference but a small one. The question is which
+    ones matter.}
 
 \begin{frame}[fragile]{Reduce to only effectful strictnesses}
 % 585c5cb
@@ -511,6 +603,10 @@ TODO: change to new shorter erand48
 
 \end{frame}
 
+\note{ Some inspection shows us which bang patters are actually carrying
+    the weight. Most are unnecessary. }
+
+
 \begin{frame}[fragile]{Remove Maybe from intersect(s)}
 % 09f43c7
 \begin{minted}[fontsize=\small]{diff}
@@ -547,6 +643,16 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 \end{minted}
 \end{frame}
 
+\note{Our innermost functions are of critical importance. Here we remove
+    a Maybe which significantly reduces the boxing (which could have
+    been mitigated with a StrictMaybe) and the cases.
+
+    Since a Ray that fails to intersect something can be said to
+    intersect at infinity, Double already actually covers the
+    structure at play.
+
+    This also reduces allocation.}
+
 \begin{frame}[fragile]{Hand unroll the fold in intersects}
 % 4f28fcc
 
@@ -560,6 +666,10 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 +  where
 +    f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
 \end{minted}
+
+\note{This removes the list and this a potential level of indirections
+    and branches. Sadly GHC did not do this for us even though the
+    list was static.}
 
 \begin{minted}[fontsize=\small]{diff}
 -spheres :: [Sphere]
@@ -597,6 +707,9 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 \end{minted}
 \end{frame}
 
+\note{Marking interesects' f parameters strict.
+    Again, its clear these will get used.}
+
 
 \begin{frame}[fragile]{Strategic application of strictness}
 TODO: This diff looks very bad
@@ -622,6 +735,12 @@ TODO: This diff looks very bad
 +    !b = op `dot` d
 +    !op = p `subv` o
 \end{minted}
+
+\note{    Here we go through the program and apply some considered strictness
+    to it. Forcing computation we don't need to do, or often forcing it
+    to far before we need it is a loss. When we put a bang pattern in,
+    GHC doesn't move it so we have to hand float it to an appropriate
+    location.}
 
 \begin{minted}[fontsize=\tiny]{diff}
 -  (t,_) | t == (1/0.0) -> return zerov
