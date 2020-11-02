@@ -183,7 +183,7 @@ smallptM !w !h !nsamps = do
 \end{frame}
 
 % 620027b45e40e5a4b18f36cabc70efe803f41a61
-\begin{frame}[fragile]{Haskell: the first stab}
+\begin{frame}[fragile]{Haskell: the first stab ($1\times$)}
 \begin{minted}[fontsize=\small]{hs}
 radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
 radiance ray@(Ray o d) depth xi = case intersects ray of
@@ -255,7 +255,8 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 \end{frame}
 
 
-\begin{frame}[fragile]{Restrict export list to `main`}
+\begin{frame}[fragile]{Restrict export list to `main` ($1.13\times$)}
+% 4678326cbb78368977f901ed32e0bdb55b8be6c7
 \begin{minted}{diff}
 -module Main where
 +module Main (main) where
@@ -266,7 +267,8 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
     that could otherwise would be detrimental or unsound
     (eg: changing signatures based on demands)}
 
-\begin{frame}[fragile]{Mark entries of Ray and Sphere as UNPACK and Strict.}
+\begin{frame}[fragile]{Mark entries of Ray and Sphere as UNPACK and Strict ($1.07\times$)}
+% 1ad231a927f1a0582aee3f161e91372f7124d0c7
 
 \begin{minted}[fontsize=\small]{diff}
 -data Ray = Ray Vec Vec -- origin, direction
@@ -286,7 +288,7 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 \note{This optimization removes indirection and laziness. }
 
 
-\begin{frame}[fragile]{Use a pattern synonym to unpack Refl in Sphere.}
+\begin{frame}[fragile]{Use a pattern synonym to unpack Refl in Sphere ($1.07\times$)}
 % e1819a6
 
 \begin{minted}[fontsize=\small]{diff}
@@ -319,7 +321,7 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
     constructed. For this small example though we rely on the fact
     that we create values of Refl via the patterns.}
 
-\begin{frame}[fragile]{Change from maximum on a list to max}
+\begin{frame}[fragile]{Change from \texttt{maximum} on a list to \texttt{max} ($1.08\times$)}
 % e77b26f
 \begin{minted}{diff}
 -maxv (Vec a b c) = maximum [a,b,c]
@@ -351,7 +353,7 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
     longer lazy.}
 
 
-\begin{frame}[fragile]{Convert erand48 to pure Haskell}
+\begin{frame}[fragile]{Convert \texttt{erand48} to pure Haskell ($1.09\times$)}
 % 48aeb46
 \begin{minted}[fontsize=\small]{diff}
 -radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
@@ -375,7 +377,7 @@ TODO: add better version of erand48 into this commit
 \end{minted}
 \end{frame}
 
-\begin{frame}[fragile]{Change erand48 to IORefU.}
+\begin{frame}[fragile]{Change \texttt{erand48} to \texttt{IORefU} ($1.13\times$)}
 % 36eb49e
 
 \begin{minted}{diff}
@@ -411,7 +413,7 @@ TODO: change to new shorter erand48
     fairly hot function this time.}
 
 
-\begin{frame}[fragile]{Rewrite the remaining IORef into a foldM}
+\begin{frame}[fragile]{Rewrite the remaining \texttt{IORef} into a \texttt{foldM} ($1.17\times$) }
 % c114ace
 \begin{minted}[fontsize=\small]{diff}
 @@ -161,8 +161,7 @@ smallpt w h nsamps = do
@@ -440,7 +442,7 @@ TODO: change to new shorter erand48
 }
 
 
-\begin{frame}[fragile]{Remove the Data.Vector.Mutable by being purer}
+\begin{frame}[fragile]{Remove the \texttt{Data.Vector.Mutable} by being purer ($1.17\times$)}
 % 44299aa
 \begin{minted}{diff}
 -radiance :: Ray -> Int -> IORefU Word64 -> IO Vec
@@ -521,7 +523,7 @@ TODO: change to new shorter erand48
     even be clearer.
 }
 
-\begin{frame}[fragile]{Set everything in smallpt to be strict}
+\begin{frame}[fragile]{Set everything in smallpt to be strict ($1.17\times$)}
 % e62177b
 \begin{minted}[fontsize=\tiny]{diff}
 -  let samps = nsamps `div` 4
@@ -565,7 +567,7 @@ TODO: change to new shorter erand48
 \note{This does make a difference but a small one. The question is which
     ones matter.}
 
-\begin{frame}[fragile]{Reduce to only effectful strictnesses}
+\begin{frame}[fragile]{Reduce to only effectful strictnesses ($1.17\times$)}
 % 585c5cb
 \begin{minted}[fontsize=\small]{diff}
 -  let !samps = nsamps `div` 4
@@ -607,7 +609,7 @@ TODO: change to new shorter erand48
     the weight. Most are unnecessary. }
 
 
-\begin{frame}[fragile]{Remove Maybe from intersect(s)}
+\begin{frame}[fragile]{Remove \texttt{Maybe} from \texttt{intersect(s)} ($1.32\times$)}
 % 09f43c7
 \begin{minted}[fontsize=\small]{diff}
 -intersect :: Ray -> Sphere -> Maybe Double
@@ -653,7 +655,7 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 
     This also reduces allocation.}
 
-\begin{frame}[fragile]{Hand unroll the fold in intersects}
+\begin{frame}[fragile]{Hand unroll the fold in intersects ($1.35\times$)}
 % 4f28fcc
 
 \begin{minted}[fontsize=\tiny]{diff}
@@ -697,7 +699,7 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 
 \end{frame}
 
-\begin{frame}[fragile]{Marking interesects' f parameters strict}
+\begin{frame}[fragile]{Marking \texttt{interesects' f} parameters strict ($1.41\times$)}
 % ed0b794
 \begin{minted}[fontsize=\small]{diff}
  intersects ray = ...
@@ -711,7 +713,7 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
     Again, its clear these will get used.}
 
 
-\begin{frame}[fragile]{Strategic application of strictness}
+\begin{frame}[fragile]{Strategic application of strictness ($1.49\times$)}
 TODO: This diff looks very bad
 % 8309e4a
 \begin{minted}[fontsize=\tiny]{diff}
@@ -776,7 +778,8 @@ TODO: This diff looks very bad
 \end{minted}
 \end{frame}
 
-\begin{frame}[fragile]{Use LLVM backend}
+\begin{frame}[fragile]{Use \texttt{LLVM} backend ($1.87\times$)}
+% 578b83c0afb6a8c7944529e2607ef9dbd5f2ab22
 \begin{minted}{diff}
 +packages: .
 +
@@ -811,6 +814,7 @@ TODO: This diff looks very bad
 %ed0b794 Marking interesects' f parameters strict.
 %8309e4a Strategic application of strictness.
 %7be5b4b Shorted erand48.
+%578b83c Use LLVM backend.
 %\end{minted}
 %}
 \end{frame}
