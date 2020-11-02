@@ -3,7 +3,7 @@
 \usepackage{pgfpages}
 
 % ENABLE THIS FOR NOTES
-% \setbeameroption{show notes on second screen=right} % Both
+\setbeameroption{show notes on second screen=right} % Both
 
 \usepackage[sc,osf]{mathpazo}   % With old-style figures and real smallcaps.
 \linespread{1.025}              % Palatino leads a little more leading
@@ -156,6 +156,8 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 \end{minted}
 \end{frame}
 
+\note{Say that the core function is radiance}
+
 \begin{frame}[fragile]{What is smallpt anyway?}
 \footnotesize
 \begin{minted}{cpp}
@@ -190,6 +192,8 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 \end{frame}
 
 \begin{frame}[fragile]{What is smallpt anyway?}
+
+\note{Say that it's recursive}
 \footnotesize
 \begin{minted}{cpp}
 Vec radiance(const Ray &r, int depth, unsigned short *Xi){ 
@@ -221,6 +225,8 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 } 
 \end{minted}
 \end{frame}
+
+\note{...with control flow}
 
 \begin{frame}[fragile]{What is smallpt anyway?}
 \footnotesize
@@ -255,6 +261,8 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 \end{minted}
 \end{frame}
 
+\note{and lots of arithmetic}
+
 \begin{frame}[fragile]{What is smallpt anyway?}
 \footnotesize
 \begin{minted}{cpp}
@@ -287,6 +295,8 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 } 
 \end{minted}
 \end{frame}
+
+\note{display the whole thing}
 
 \begin{frame}[fragile]{Initial Haskell Code ($1\times$)}
 % 620027b45e40e5a4b18f36cabc70efe803f41a61
@@ -329,8 +339,11 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
                 rad <- radiance reflRay depth' xi
                                                 
 \end{minted}
+
 \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
 \end{frame}
+
+\note{show the same thing, this time in haskell}
 
 \begin{frame}[fragile]{Initial Haskell Code ($1\times$)}
 % 620027b45e40e5a4b18f36cabc70efe803f41a61
@@ -379,6 +392,8 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
 \end{frame}
 
+\note{full code}
+
 
 \begin{frame}[fragile]{Restrict export list to `main` ($1.13\times$)}
 % 4678326cbb78368977f901ed32e0bdb55b8be6c7
@@ -408,6 +423,11 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 +                     {-# UNPACK #-} !Vec 
 +                     {-# UNPACK #-} !Vec !Refl
 \end{minted}
+
+\begin{itemize}
+\item Removes laziness.
+\item Laziness implemented as unknown function call, which is an indirect jump, which is bad for performance
+\end{itemize}
 \end{frame}
 
 \note{This optimization removes indirection and laziness. }
@@ -438,6 +458,10 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 +                     {-# UNPACK #-} !Vec {-# UNPACK #-} !Refl
 
  \end{minted}
+
+ \begin{itemize}
+ \item Can be done using unboxed sums. Is much uglier syntax!
+ \end{itemize}
 \end{frame}
 
 \note{    While we weren't able to unpack Refl in the last step because it
@@ -756,6 +780,11 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 +sphRight = Sphere 1e5  (Vec (-1e5+99) 40.8 81.6)  zerov (Vec 0.25 0.25 0.75) DIFF
 ...
 \end{minted}
+
+ \begin{itemize}
+ \item Can also be realized using \texttt{REWRITE} rules.
+ \item GHC does not attempt to partially evaluate.
+ \end{itemize}
 
 \end{frame}
 
