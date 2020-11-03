@@ -640,15 +640,7 @@ struct OptFoo { int64_t i; }
 +          (\pf -> foldlM pf 0 [(sy, sx) | sy <- [0,1], sx <- [0,1]]) \ci (sy, sx) -> do
 +            Vec rr rg rb <- (\f -> foldlM f 0 [0..samps-1]) \ !r _s -> do
 +              r1 <- (2*) <$> erand48
-               let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
--              r2 <- (2*) <$> erand48 xi
-+              r2 <- (2*) <$> erand48
-               let dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
-                   d = (cx .* (((sx + 0.5 + dx)/2 + fromIntegral x)/fromIntegral w - 0.5)) +
-                       (cy .* (((sy + 0.5 + dy)/2 + fromIntegral y)/fromIntegral h - 0.5)) + dir
--              rad <- radiance (Ray (org+d.*140) (norm d)) 0 xi
-+              rad <- radiance (Ray (org+d.*140) (norm d)) 0
-               -- Camera rays are pushed forward ^^^^^ to start in interior
+...
 -              modifyIORef r (+ rad .* recip (fromIntegral samps))
 -            ci <- VM.unsafeRead c i
 -            Vec rr rg rb <- readIORef r
@@ -903,8 +895,6 @@ intersects :: Ray -> (Double, Sphere)
 \begin{frame}[fragile]{Use \texttt{LLVM} backend ($1.87\times$)}
 % 578b83c0afb6a8c7944529e2607ef9dbd5f2ab22
 \begin{minted}{diff}
-+packages: .
-+
 +package smallpt-opt
 +  ghc-options: -fllvm
 \end{minted}
