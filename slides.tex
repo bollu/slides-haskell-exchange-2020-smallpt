@@ -76,6 +76,10 @@
 }
 
 
+
+\setbeamersize{text margin left=10pt,text margin right=5pt}
+
+
 \begin{document}
 
 \maketitle
@@ -519,120 +523,99 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 \end{minted}
 \end{frame}
 
-\begin{frame}[fragile]{Change \texttt{erand48} to \texttt{IORefU} ($1.13\times$)}
-% 36eb49e
+\begin{frame}[fragile]{Remove mutability: \texttt{Erand48} Monad}
 
-\begin{minted}{diff}
+
+\begin{minted}[fontsize=\small]{diff}
+...
+-erand48 :: IORef Word64 -> IO Double
+-erand48 !t =  do
+-  r <- readIORef t
++data ET a = ET !Word64 !a deriving Functor
++newtype Erand48 a = Erand48 { runErand48' :: Word64 -> ET a } deriving Functor
++
++instance Applicative Erand48 where
+...
++instance Monad Erand48 where
+...
++runWithErand48 :: Int -> Erand48 a -> a                                                                                                
++runWithErand48 !y act =
++   let yw = fromIntegral y
++       prod = yw * yw * yw 
++        ET _ !r = runErand48' act (prod `unsafeShiftL` 32) in r
+...
++erand48 :: Erand48 Double
++erand48 =  Erand48 \ !r ->
+   let x' = 0x5deece66d * r + 0xb
+       d_word = 0x3ff0000000000000 .|. ((x' .&. 0xffffffffffff) `unsafeShiftL` 4)
+       d = castWord64ToDouble d_word - 1.0
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Remove mutability: Using \texttt{Erand48}}
+\begin{minted}[fontsize=\small]{diff}
 -radiance :: Ray -> Int -> IORef Word64 -> IO Vec
-+radiance :: Ray -> Int -> IORefU Word64 -> IO Vec
- radiance ray@(Ray o d) depth xi = case intersects ray of
-   (Nothing,_) -> return zerov
-   (Just t,Sphere _r p e c refl) -> do
-@@ -153,7 +154,7 @@ smallpt w h nsamps = do
-       cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
-       cy = norm (cx `cross` dir) `mulvs` 0.5135
-   c <- VM.replicate (w * h) zerov
--  xi <- newIORef 0
-+  xi <- newIORefU 0
-   flip mapM_ [0..h-1] $ \y -> do
-       writeXi xi y
-       flip mapM_ [0..w-1] $ \x -> do
-@@ -181,8 +182,8 @@ smallpt w h nsamps = do
-           Vec r g b <- VM.unsafeRead c i
-           hPrintf hdl "%d %d %d " (toInt r) (toInt g) (toInt b)
- 
--writeXi :: IORef Word64 -> Int -> IO ()
--writeXi !xi !y = writeIORef xi (mkErand48Seed' y)
-+writeXi :: IORefU Word64 -> Int -> IO ()
-+writeXi !xi !y = writeIORefU xi (mkErand48Seed' y)
-\end{minted}
-\end{frame}
-
-\note{This just removes yet one more layer of indirection, but on a
-    fairly hot function this time.}
-
-
-\begin{frame}[fragile]{Rewrite the remaining \texttt{IORef} into a \texttt{foldM} ($1.17\times$) }
-% c114ace
-\begin{minted}[fontsize=\small]{diff}
-@@ -161,8 +161,7 @@ smallpt w h nsamps = do
-         let i = (h-y-1) * w + x
-         flip mapM_ [0..1] $ \sy -> do
-           flip mapM_ [0..1] $ \sx -> do
--            r <- newIORef zerov
--            flip mapM_ [0..samps-1] $ \_s -> do
-+            Vec rr rg rb <- (\f -> foldM f zerov [0..samps-1]) $ \ !r _s -> do
-               r1 <- (2*) `fmap` erand48 xi
-               let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
-               r2 <- (2*) `fmap` erand48 xi
-@@ -171,9 +170,8 @@ smallpt w h nsamps = do
--              modifyIORef r (`addv` (rad `mulvs` (1 / fromIntegral samps)))
-+              pure (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
-             ci <- VM.unsafeRead c i
--            Vec rr rg rb <- readIORef r
-\end{minted}
-\end{frame}
-
-\note{
-    This removes another source of mutability, and potentially
-    indirection. This use of an IORef wasn't very Haskelly, so unlike
-    erand48 where the IORef was in a way appropriate, it made more
-    sense to just remove this one.
-}
-
-
-\begin{frame}[fragile]{Remove the \texttt{Data.Vector.Mutable} by being purer ($1.17\times$)}
-% 44299aa
-\begin{minted}[fontsize=\small]{diff}
--radiance :: Ray -> Int -> IORefU Word64 -> IO Vec
-+radiance :: Ray -> Int -> STRefU s Word64 -> ST s Vec
+-radiance ray@(Ray o d) depth xi = case intersects ray of
++radiance :: Ray -> Int -> Erand48 Vec
++radiance ray@(Ray o d) depth = case intersects ray of
 ...
--  c <- VM.replicate (w * h) zerov
--  xi <- newIORefU 0
--  flip mapM_ [0..h-1] $ \y -> do
--      writeXi xi y
--      flip mapM_ [0..w-1] $ \x -> do
--        let i = (h-y-1) * w + x
--        flip mapM_ [0..1] $ \sy -> do
--          flip mapM_ [0..1] $ \sx -> do
-+      img = (`concatMap` [(h-1),(h-2)..0]) $ \y -> runST $ do
-+        xi <- newSTRefU (mkErand48Seed' y)
-+        forM [0..w-1] $ \x -> do
+-            r1 <- (2*pi*) <$> erand48 xi
+-            r2 <- erand48 xi
++            r1 <- (2*pi*) <$> erand48
++            r2 <- erand48
+...
+-                              then (.* rp) <$> radiance reflRay depth' xi
+-                              else (.* tp) <$> radiance (Ray x tdir) depth' xi
++                              then (.* rp) <$> radiance reflRay depth'
++                              else (.* tp) <$> radiance (Ray x tdir) depth'
 ...
 \end{minted}
-
-\begin{minted}[fontsize=\small]{diff}
--erand48 :: IORefU Word64 -> IO Double
-+erand48 :: STRefU s Word64 -> ST s Double
- erand48 !t =  do
--  r <- readIORefU t
-+  r <- readSTRefU t
-   let (r', d) = erand48' r
--  writeIORefU t r'
-+  writeSTRefU t r'
-   pure d
-\end{minted}
 \end{frame}
 
-\note{
-    Theres a few things going on here. First we stop being in IO and
-    create a new STRefU for each Y row. This is slightly more
-    allocation but breaks the dependency between y rows which would
-    be useful if parallel. Second remove the vector, and instead
-    directly accumulate into the result. Third, since we're generating
-    results directly, we just produce a list, and don't bother with
-    the 'i' variable placement, which means we want to reorder which
-    y rows we generate first. So we generate them in the reverse order
-    (but this does potentially change edge cases and parameter
-    validation should be added to cover).
+\begin{frame}{Removing mutability: eliminate \texttt{IORef}}
+% 
+% \begin{minted}[fontsize=\small]{diff}
+% -  c <- VM.replicate (w * h) 0
+% -  xi <- newIORef 0
+% -  flip mapM_ [0..h-1] $ \y -> do
+% -      writeXi xi y
+% -      for_ [0..w-1] \x -> do
+% -        let i = (h-y-1) * w + x
+% -        for_ [0..1] \sy -> do
+% -          for_ [0..1] \sx -> do
+% -            r <- newIORef 0
+% -            for_ [0..samps-1] \_s -> do
+% -              r1 <- (2*) <$> erand48 xi
+% +      img = (`concatMap` [(h-1),(h-2)..0]) $ \y -> runWithErand48 y do
+% +        for [0..w-1] \x -> do
+% +          (\pf -> foldlM pf 0 [(sy, sx) | sy <- [0,1], sx <- [0,1]]) \ci (sy, sx) -> do
+% +            Vec rr rg rb <- (\f -> foldlM f 0 [0..samps-1]) \ !r _s -> do
+% +              r1 <- (2*) <$> erand48
+%                let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
+% -              r2 <- (2*) <$> erand48 xi
+% +              r2 <- (2*) <$> erand48
+%                let dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
+%                    d = (cx .* (((sx + 0.5 + dx)/2 + fromIntegral x)/fromIntegral w - 0.5)) +
+%                        (cy .* (((sy + 0.5 + dy)/2 + fromIntegral y)/fromIntegral h - 0.5)) + dir
+% -              rad <- radiance (Ray (org+d.*140) (norm d)) 0 xi
+% +              rad <- radiance (Ray (org+d.*140) (norm d)) 0
+%                -- Camera rays are pushed forward ^^^^^ to start in interior
+% -              modifyIORef r (+ rad .* recip (fromIntegral samps))
+% -            ci <- VM.unsafeRead c i
+% -            Vec rr rg rb <- readIORef r
+% -            VM.unsafeWrite c i $ ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25
+% +              pure (r + rad .* recip (fromIntegral samps))
+% +            pure (ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25)
+% ...
+% \end{minted}
+\end{frame}
 
-    This notably removes a decent number of lines of code and might
-    even be clearer.
-}
 
-\begin{frame}[fragile]{Set \textbf{everything} in smallpt to be strict ($1.17\times$)}
+\begin{frame}[fragile]{Set \textbf{everything} in \texttt{smallpt} to be strict ($1.17\times$)}
 % e62177b
 \begin{minted}[fontsize=\small]{diff}
+smallpt :: Int -> Int -> Int -> IO ()
+smallpt w h nsamps = do
 -  let samps = nsamps `div` 4
 -      org = Vec 50 52 295.6
 -      dir = norm $ Vec 0 (-0.042612) (-1)
@@ -643,9 +626,7 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 +      !dir = norm $ Vec 0 (-0.042612) (-1)
 +      !cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
 +      !cy = norm (cx `cross` dir) `mulvs` 0.5135
-\end{minted}
-
-\begin{minted}[fontsize=\small]{diff}
+...
 -  r1 <- (2*) `fmap` erand48 xi
 -  let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
 -  r2 <- (2*) `fmap` erand48 xi
@@ -657,52 +638,69 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 +  !r2 <- (2*) `fmap` erand48 xi
 +  let !dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
 +      !d = ...
+...
++              pure $! r + rad .* recip (fromIntegral samps)
++            pure $! ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25
 \end{minted}
 \end{frame}
 
 \note{This does make a difference but a small one. The question is which
     ones matter.}
 
-\begin{frame}[fragile]{Reduce to only effectful strictnesses ($1.17\times$)}
-% 585c5cb
-\begin{minted}[fontsize=\small]{diff}
+\begin{frame}[fragile]{Reduce to only useful strictnesses in \texttt{smallpt}($1.17\times$)}
+
+\begin{minted}{diff}
 -  let !samps = nsamps `div` 4
 -      !org = Vec 50 52 295.6
 -      !dir = norm $ Vec 0 (-0.042612) (-1)
 -      !cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
--      !cy = norm (cx `cross` dir) `mulvs` 0.5135
+-      !cy = norm (cx `cross` dir) .* 0.5135
 +  let samps = nsamps `div` 4
 +      org = Vec 50 52 295.6
 +      dir = norm $ Vec 0 (-0.042612) (-1)
 +      cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
-+      cy = norm (cx `cross` dir) `mulvs` 0.5135
++      cy = norm (cx `cross` dir) .* 0.5135
+...
+-              !r1 <- (2*) <$> erand48
++              r1 <- (2*) <$> erand48
+...
+-              !r2 <- (2*) <$> erand48
++              r2 <- (2*) <$> erand48
+...
+-              !rad <- radiance (Ray (org+d.*140) (norm d)) 0
++              rad <- radiance (Ray (org+d.*140) (norm d)) 0
+...
+-              pure $! r + rad .* recip (fromIntegral samps)
+-            pure $! ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25
++              pure (r + rad .* recip (fromIntegral samps))
++            pure (ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25)
 \end{minted}
-\begin{minted}[fontsize=\small]{diff}
--              !r1 <- (2*) `fmap` erand48 xi
-+              r1 <- (2*) `fmap` erand48 xi
-\end{minted}
-
-\begin{minted}[fontsize=\small]{hs}
--              !r2 <- (2*) `fmap` erand48 xi
-+              r2 <- (2*) `fmap` erand48 xi
-\end{minted}
-
-\begin{minted}[fontsize=\small]{diff}
--              !rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
-+              rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
-\end{minted}
-
-\begin{minted}[fontsize=\small]{hs}
--              pure $! (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
--            pure $! ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
-+              pure $ (r `addv` (rad `mulvs` (1 / fromIntegral samps)))
-+            pure $ ci `addv` (Vec (clamp rr) (clamp rg) (clamp rb) `mulvs` 0.25)
-\end{minted}
-
 \end{frame}
 
 \note{ Some inspection shows us which bang patters are actually carrying
     the weight. Most are unnecessary. }
+
+\begin{frame}[fragile]{Use strictness strategically in entire project}
+\begin{minted}[fontsize=\small]{diff}
+-  if det<0 then Nothing else f (b-sdet) (b+sdet)
+-  where op = p - o
+-        eps = 1e-4
+-        b = dot op d
+-        det = b*b - dot op op + r*r
+-        sdet = sqrt det
+-        f a s = if a>eps then Just a else if s>eps then Just s else Nothing
++  if det<0
++  then Nothing
++  else
++    let !eps = 1e-4
++        !sdet = sqrt det
++        !a = b-sdet
++        !s = b+sdet
++    in if a>eps then Just a else if s>eps then Just s else Nothing
+-    ...
+\end{minted}
+TODO: maybe more interesting to talk about places where having strictness was **not** useful
+\end{frame}
 
 
 \begin{frame}[fragile]{Remove \texttt{Maybe} from \texttt{intersect(s)} ($1.32\times$)}
@@ -788,85 +786,70 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 
 \end{frame}
 
-\begin{frame}[fragile]{Marking \texttt{interesects f} parameters strict ($1.41\times$)}
-% ed0b794
-% TODO: move text to the left
-\begin{minted}[fontsize=\small]{diff}
- intersects ray = ...
+\begin{frame}[fragile]{Custom datatype for \texttt{intersects} parameter passing}
+\begin{minted}{diff}
+-intersects :: Ray -> (Double, Sphere)
++data T = T !Double !Sphere
++
++intersects :: Ray -> T
+ intersects ray =
+-    f ( ... f (intersect ray sphLeft, sphLeft) sphRight) ... sphLite
++    f ( ... f (T (intersect ray sphLeft) sphLeft) sphRight) ... sphLite
    where
--    f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
-+    f !(!k', !sp) !s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
+-    f (k', sp) s' = 
+-        let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
++    f !(T k' sp) !s' =
++        let !x = intersect ray s' in if x < k' then T x s' else T k' sp
+ 
+ radiance :: Ray -> Int -> Erand48 Vec
+ radiance ray@(Ray o d) depth = case intersects ray of
+-  (!t,_) | t == 1/0.0 -> return 0
+-  (!t,!Sphere _r p e c refl) -> do
++  (T t _) | t == 1/0.0 -> return 0
++  (T t (Sphere _r p e c refl)) -> do
+     let !x = o + d .* t
+         !n = norm $ x - p
+         !nl = if dot n d < 0 then n else negate n
 \end{minted}
 \end{frame}
 
-\note{Marking interesects' f parameters strict.
-    Again, its clear these will get used.}
+\note{
+    Its clear that f will consume these, so making it strict can have
+    some benefit. The problem is the right level here. One's first
+    take might be to set the parameters of 'f' to be strict, and that
+    can have benefits, but it leaves a lot on the table. Moving to
+    and unboxed tuple performs the computation faster but introduces
+    copying. Out 'T' datatype here has the right balance, it makes it
+    clear the data is strict but doesn't copy.
+}
 
-
-\begin{frame}[fragile]{Strategic application of strictness ($1.49\times$)}
-% 8309e4a
-% reading core, 
-\begin{minted}[fontsize=\tiny]{diff}
--  if det<0 then (1/0.0) else f (b-sdet) (b+sdet)
--  where op = p `subv` o
--        eps = 1e-4
--        b = op `dot` d
--        det = b*b - (op `dot` op) + r*r
--        sdet = sqrt det
--        f a s = if a>eps then a else if s>eps then s else (1/0.0)
-+  if det<0
-+  then (1/0.0)
-+  else
-+    let !eps = 1e-4
-+        !sdet = sqrt det
-+        !a = b-sdet
-+        !s = b+sdet
-+    in if a>eps then a else if s>eps then s else (1/0.0)
-+  where
-+    !det = b*b - (op `dot` op) + r*r
-+    !b = op `dot` d
-+    !op = p `subv` o
+\begin{frame}[fragile]{Optimize file writing}
+\begin{minted}{diff}
+   build-depends:
+       base >= 4.12 && < 4.15
++    , bytestring ^>= 0.11
 \end{minted}
-
-\note{    Here we go through the program and apply some considered strictness
-    to it. Forcing computation we don't need to do, or often forcing it
-    to far before we need it is a loss. When we put a bang pattern in,
-    GHC doesn't move it so we have to hand float it to an appropriate
-    location.}
-
-\begin{minted}[fontsize=\tiny]{diff}
--  (t,_) | t == (1/0.0) -> return zerov
--  (t,Sphere _r p e c refl) -> do
--    let x = o `addv` (d `mulvs` t)
--        n = norm $ x `subv` p
--        nl = if n `dot` d < 0 then n else n `mulvs` (-1)
--        depth' = depth + 1
-+  (!t,_) | t == (1/0.0) -> return zerov
-+  (!t,!Sphere _r p e c refl) -> do
-+    let !x = o `addv` (d `mulvs` t)
-+        !n = norm $ x `subv` p
-+        !nl = if n `dot` d < 0 then n else n `mulvs` (-1)
-+        !depth' = depth + 1
-\end{minted}
-\begin{minted}[fontsize=\tiny]{diff}
--                    a=nt-nc
--                    b=nt+nc
--                    r0=a*a/(b*b)
--                    c' = 1-(if into then -ddn else tdir`dot`n)
--                    re=r0+(1-r0)*c'*c'*c'*c'*c'
--                    tr=1-re
--                    pp=0.25+0.5*re
--                    rp=re/pp
--                    tp=tr/(1-pp)
-+                    !r0=4.0e-2
-+                    !c' = 1-(if into then -ddn else tdir`dot`n)
-+                    !re=r0+(1-r0)*c'*c'*c'*c'*c'
-+                    !tr=1-re
-+                    !pp=0.25+0.5*re
-+                    !rp=re/pp
-+                    !tp=tr/(1-pp)
+\begin{minted}{diff}
+-toInt :: Double -> Int
+-toInt x = floor $ clamp x ** recip 2.2 * 255 + 0.5
++toInt :: Double -> BB.Builder
++toInt x = BB.intDec (floor (clamp x ** recip 2.2 * 255 + 0.5)) <> BB.char8 ' '
+... 
+   withFile "image.ppm" WriteMode $ \hdl -> do
+-        hPrintf hdl "P3\n%d %d\n%d\n" w h (255::Int)
+-        for_ img \(Vec r g b) -> do
+-          hPrintf hdl "%d %d %d " (toInt r) (toInt g) (toInt b)
++        BB.hPutBuilder hdl $
++          BB.string8 "P3\n" <>
++          BB.intDec w <> BB.char8 ' ' <> BB.intDec h <> BB.char8 '\n' <>
++          BB.intDec 255 <> BB.char8 '\n' <>
++          (mconcat $ fmap (\(Vec r g b) -> toInt r <> toInt g <> toInt b) img)
 \end{minted}
 \end{frame}
+
+\note{Strings are slow and the code was even using a slow conversion
+    path to strings.}
+
 
 \begin{frame}[fragile]{Use \texttt{LLVM} backend ($1.87\times$)}
 % 578b83c0afb6a8c7944529e2607ef9dbd5f2ab22
