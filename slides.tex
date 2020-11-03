@@ -302,7 +302,7 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 
 \note{display the whole thing}
 
-\begin{frame}[fragile]{Initial Haskell Code ($1\times$)}
+\begin{frame}[fragile]{Initial Haskell Code: \texttt{radiance} ($1\times$)}
 % 620027b45e40e5a4b18f36cabc70efe803f41a61
 \begin{minted}[fontsize=\tiny]{hs}
 ...
@@ -344,12 +344,12 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
                                                 
 \end{minted}
 
-\raw{Sha256} hash of the output image --- \raw{4dac691082bb}
+% \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
 \end{frame}
 
 \note{show the same thing, this time in haskell}
 
-\begin{frame}[fragile]{Initial Haskell Code ($1\times$)}
+\begin{frame}[fragile]{Initial Haskell Code: \texttt{radiance} ($1\times$) }
 % 620027b45e40e5a4b18f36cabc70efe803f41a61
 \begin{minted}[fontsize=\tiny]{hs}
 ...
@@ -397,6 +397,50 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 \end{frame}
 
 \note{full code}
+
+
+\begin{frame}[fragile]{Initial Haskell Code: Entry point  ($1\times$)}
+\begin{minted}{hs}
+smallpt :: Int -> Int -> Int -> IO ()
+smallpt w h nsamps = do
+  ...
+  c <- VM.replicate (w * h) 0
+  allocaArray 3 \xi ->
+    flip mapM_ [0..h-1] $ \y -> do
+      writeXi xi y
+      for_ [0..w-1] \x -> do
+        let i = (h-y-1) * w + x
+        for_ [0..1] \sy -> do
+          for_ [0..1] \sx -> do
+            r <- newIORef 0
+            for_ [0..samps-1] \_s -> do
+              r1 <- (2*) <$> erand48 xi
+              ...
+              rad <- radiance (Ray (org+d.*140) (norm d)) 0 xi
+              ...
+              modifyIORef r (+ rad .* recip (fromIntegral samps))
+            ci <- VM.unsafeRead c i
+            Vec rr rg rb <- readIORef r
+            VM.unsafeWrite c i $ ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Initial Haskell Code: File I/O  ($1\times$)}
+\begin{minted}{hs}
+  withFile "image.ppm" WriteMode $ \hdl -> do
+        hPrintf hdl "P3\n%d %d\n%d\n" w h (255::Int)
+        flip mapM_ [0..w*h-1] \i -> do
+          Vec r g b <- VM.unsafeRead c i
+          hPrintf hdl "%d %d %d " (toInt r) (toInt g) (toInt b)
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Initial Haskell Code: RNG ($1\times$)}
+\begin{minted}{hs}
+foreign import ccall unsafe "erand48"
+  erand48 :: Ptr CUShort -> IO Double
+\end{minted}
+\end{frame}
 
 
 \begin{frame}[fragile]{Restrict export list to `main` ($1.13\times$)}
