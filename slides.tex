@@ -472,10 +472,18 @@ foreign import ccall unsafe "erand48"
 +                     {-# UNPACK #-} !Vec !Refl
 \end{minted}
 
-\begin{itemize}
-\item Removes laziness.
-\item Laziness implemented as unknown function call, which is an indirect jump, which is bad for performance
-\end{itemize}
+\pause
+
+\begin{minted}{hs}
+data Foo = Foo !Int 
+data OptFoo  = OptFoo {-# UNPACK #-} !Int ~= OptFoo Int#
+\end{minted}
+
+\begin{minted}{cpp}
+struct Int { int64_t i; }
+struct Foo { Int *iptr; }
+struct OptFoo { int64_t i; }
+\end{minted}
 \end{frame}
 
 \note{This optimization removes indirection and laziness. }
@@ -507,9 +515,6 @@ foreign import ccall unsafe "erand48"
 
  \end{minted}
 
- \begin{itemize}
- \item Can be done using unboxed sums. Is much uglier syntax!
- \end{itemize}
 \end{frame}
 
 \note{    While we weren't able to unpack Refl in the last step because it
@@ -540,7 +545,6 @@ foreign import ccall unsafe "erand48"
          er <- erand48 xi
 +        let !pr = maxv c
 \end{minted}
-
 \end{frame}
 
 \note{finicky optimization. GHC does not evaluate at compile time, making
@@ -596,7 +600,7 @@ foreign import ccall unsafe "erand48"
 \end{minted}
 \end{frame}
 
-\begin{frame}[fragile]{Remove mutability: Using \texttt{Erand48}}
+\begin{frame}[fragile]{Remove mutation: Using \texttt{Erand48}}
 \begin{minted}[fontsize=\small]{diff}
 -radiance :: Ray -> Int -> IORef Word64 -> IO Vec
 -radiance ray@(Ray o d) depth xi = case intersects ray of
@@ -616,42 +620,43 @@ foreign import ccall unsafe "erand48"
 \end{minted}
 \end{frame}
 
-\begin{frame}{Removing mutability: eliminate \texttt{IORef}}
-% 
-% \begin{minted}[fontsize=\small]{diff}
-% -  c <- VM.replicate (w * h) 0
-% -  xi <- newIORef 0
-% -  flip mapM_ [0..h-1] $ \y -> do
-% -      writeXi xi y
-% -      for_ [0..w-1] \x -> do
-% -        let i = (h-y-1) * w + x
-% -        for_ [0..1] \sy -> do
-% -          for_ [0..1] \sx -> do
-% -            r <- newIORef 0
-% -            for_ [0..samps-1] \_s -> do
-% -              r1 <- (2*) <$> erand48 xi
-% +      img = (`concatMap` [(h-1),(h-2)..0]) $ \y -> runWithErand48 y do
-% +        for [0..w-1] \x -> do
-% +          (\pf -> foldlM pf 0 [(sy, sx) | sy <- [0,1], sx <- [0,1]]) \ci (sy, sx) -> do
-% +            Vec rr rg rb <- (\f -> foldlM f 0 [0..samps-1]) \ !r _s -> do
-% +              r1 <- (2*) <$> erand48
-%                let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
-% -              r2 <- (2*) <$> erand48 xi
-% +              r2 <- (2*) <$> erand48
-%                let dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
-%                    d = (cx .* (((sx + 0.5 + dx)/2 + fromIntegral x)/fromIntegral w - 0.5)) +
-%                        (cy .* (((sy + 0.5 + dy)/2 + fromIntegral y)/fromIntegral h - 0.5)) + dir
-% -              rad <- radiance (Ray (org+d.*140) (norm d)) 0 xi
-% +              rad <- radiance (Ray (org+d.*140) (norm d)) 0
-%                -- Camera rays are pushed forward ^^^^^ to start in interior
-% -              modifyIORef r (+ rad .* recip (fromIntegral samps))
-% -            ci <- VM.unsafeRead c i
-% -            Vec rr rg rb <- readIORef r
-% -            VM.unsafeWrite c i $ ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25
-% +              pure (r + rad .* recip (fromIntegral samps))
-% +            pure (ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25)
-% ...
-% \end{minted}
+\begin{frame}[fragile]{Removing mutation: eliminate \texttt{IORef}}
+
+
+\begin{minted}[fontsize=\small]{diff}
+-  c <- VM.replicate (w * h) 0
+-  xi <- newIORef 0
+-  flip mapM_ [0..h-1] $ \y -> do
+-      writeXi xi y
+-      for_ [0..w-1] \x -> do
+-        let i = (h-y-1) * w + x
+-        for_ [0..1] \sy -> do
+-          for_ [0..1] \sx -> do
+-            r <- newIORef 0
+-            for_ [0..samps-1] \_s -> do
+-              r1 <- (2*) <$> erand48 xi
++      img = (`concatMap` [(h-1),(h-2)..0]) $ \y -> runWithErand48 y do
++        for [0..w-1] \x -> do
++          (\pf -> foldlM pf 0 [(sy, sx) | sy <- [0,1], sx <- [0,1]]) \ci (sy, sx) -> do
++            Vec rr rg rb <- (\f -> foldlM f 0 [0..samps-1]) \ !r _s -> do
++              r1 <- (2*) <$> erand48
+               let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
+-              r2 <- (2*) <$> erand48 xi
++              r2 <- (2*) <$> erand48
+               let dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
+                   d = (cx .* (((sx + 0.5 + dx)/2 + fromIntegral x)/fromIntegral w - 0.5)) +
+                       (cy .* (((sy + 0.5 + dy)/2 + fromIntegral y)/fromIntegral h - 0.5)) + dir
+-              rad <- radiance (Ray (org+d.*140) (norm d)) 0 xi
++              rad <- radiance (Ray (org+d.*140) (norm d)) 0
+               -- Camera rays are pushed forward ^^^^^ to start in interior
+-              modifyIORef r (+ rad .* recip (fromIntegral samps))
+-            ci <- VM.unsafeRead c i
+-            Vec rr rg rb <- readIORef r
+-            VM.unsafeWrite c i $ ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25
++              pure (r + rad .* recip (fromIntegral samps))
++            pure (ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25)
+...
+\end{minted}
 \end{frame}
 
 
@@ -692,7 +697,6 @@ smallpt w h nsamps = do
     ones matter.}
 
 \begin{frame}[fragile]{Reduce to only useful strictnesses in \texttt{smallpt}($1.17\times$)}
-
 \begin{minted}{diff}
 -  let !samps = nsamps `div` 4
 -      !org = Vec 50 52 295.6
@@ -726,6 +730,7 @@ smallpt w h nsamps = do
 
 \begin{frame}[fragile]{Use strictness strategically in entire project}
 \begin{minted}[fontsize=\small]{diff}
+...
 -  if det<0 then Nothing else f (b-sdet) (b+sdet)
 -  where op = p - o
 -        eps = 1e-4
@@ -741,7 +746,7 @@ smallpt w h nsamps = do
 +        !a = b-sdet
 +        !s = b+sdet
 +    in if a>eps then Just a else if s>eps then Just s else Nothing
--    ...
+...
 \end{minted}
 TODO: maybe more interesting to talk about places where having strictness was **not** useful
 \end{frame}
@@ -797,7 +802,7 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 % 4f28fcc
 
 \begin{minted}[fontsize=\small]{diff}
- intersects :: Ray -> (Double, Sphere)
+intersects :: Ray -> (Double, Sphere)
 -intersects ray = (k, s)
 -  where (k,s) = foldl' f (1/0.0,undefined) spheres
 +intersects ray =
