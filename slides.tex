@@ -378,14 +378,14 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
             rad <- radiance (Ray x d') depth' xi
             return $ e `addv` (f `mulv` rad)
           REFR -> do
-            let reflRay = Ray x (d `subv` (n `mulvs` (2* n`dot`d))) -- Ideal dielectric REFRACTION
-                into = n`dot`nl > 0                -- Ray from outside going in?
+            let reflRay = Ray x (d `subv` (n `mulvs` (2* n`dot`d)))
+                into = n`dot`nl > 0                
                 nc = 1
                 nt = 1.5
                 nnt = if into then nc/nt else nt/nc
                 ddn= d`dot`nl
                 cos2t = 1-nnt*nnt*(1-ddn*ddn)
-            if cos2t<0    -- Total internal reflection
+            if cos2t<0
               then do
                 rad <- radiance reflRay depth' xi
 \end{minted}
@@ -468,8 +468,6 @@ foreign import ccall unsafe "erand48"
 +                     {-# UNPACK #-} !Vec 
 +                     {-# UNPACK #-} !Vec !Refl
 \end{minted}
-
-\pause
 \end{frame}
 
 \note{This optimization removes indirection and laziness. }
@@ -588,8 +586,6 @@ foreign import ccall unsafe "erand48"
 \end{frame}
 
 \begin{frame}[fragile]{Removing mutation: eliminate \texttt{IORef}}
-
-
 \begin{minted}[fontsize=\small]{diff}
 -  c <- VM.replicate (w * h) 0
 -  xi <- newIORef 0
@@ -713,16 +709,15 @@ smallpt w h nsamps = do
 \begin{frame}[fragile]{Remove \texttt{Maybe} from \texttt{intersect(s)} ($1.32\times$)}
 % 09f43c7
 \begin{minted}[fontsize=\small]{diff}
+| Old: Use Maybe Double to represent (was-hit?:bool, hit-distance: Double)
+| New: use (1/0) to represent not (was-hit?)
 -intersect :: Ray -> Sphere -> Maybe Double
 +intersect :: Ray -> Sphere -> Double
 intersect (Ray o d) (Sphere r p _e _c _refl) =
 -  if det<0 then Nothing else f (b-sdet) (b+sdet)
 +  if det<0 then (1/0.0) else f (b-sdet) (b+sdet)
    where op = p `subv` o
-        eps = 1e-4
-         b = op `dot` d
-         det = b*b - (op `dot` op) + r*r
-         sdet = sqrt det
+         ...
 -        f a s = if a>eps then Just a else if s>eps then Just s else Nothing
 +        f a s = if a>eps then a else if s>eps then s else (1/0.0)
 
@@ -790,8 +785,10 @@ intersects :: Ray -> (Double, Sphere)
 
 \begin{frame}[fragile]{Custom datatype for \texttt{intersects} parameter passing}
 \begin{minted}{diff}
+Old: Tuple with possibly-uenevaluated Double and Sphere
+New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 -intersects :: Ray -> (Double, Sphere)
-+data T = T !Double !Sphere
++data T = T !Double !Sphere 
 +
 +intersects :: Ray -> T
  intersects ray =
@@ -834,7 +831,7 @@ intersects :: Ray -> (Double, Sphere)
 \begin{minted}{diff}
 -toInt :: Double -> Int
 -toInt x = floor $ clamp x ** recip 2.2 * 255 + 0.5
-+toInt :: Double -> BB.Builder
++toInt :: Double -> BB.Builder -- O(1) concatenation
 +toInt x = BB.intDec (floor (clamp x ** recip 2.2 * 255 + 0.5)) <> BB.char8 ' '
 ... 
    withFile "image.ppm" WriteMode $ \hdl -> do
@@ -842,7 +839,7 @@ intersects :: Ray -> (Double, Sphere)
 -        for_ img \(Vec r g b) -> do
 -          hPrintf hdl "%d %d %d " (toInt r) (toInt g) (toInt b)
 +        BB.hPutBuilder hdl $
-+          BB.string8 "P3\n" <>
++          BB.string8 "P3\n" <>  -- efficient builders for ASCII
 +          BB.intDec w <> BB.char8 ' ' <> BB.intDec h <> BB.char8 '\n' <>
 +          BB.intDec 255 <> BB.char8 '\n' <>
 +          (mconcat $ fmap (\(Vec r g b) -> toInt r <> toInt g <> toInt b) img)
@@ -856,7 +853,8 @@ intersects :: Ray -> (Double, Sphere)
 \begin{frame}[fragile]{Use \texttt{LLVM} backend ($1.87\times$)}
 % 578b83c0afb6a8c7944529e2607ef9dbd5f2ab22
 \begin{minted}{diff}
-+package smallpt-opt +  ghc-options: -fllvm
++package smallpt-opt 
++  ghc-options: -fllvm
 \end{minted}
 \end{frame}
 
