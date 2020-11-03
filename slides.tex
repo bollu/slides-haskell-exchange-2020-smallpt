@@ -3,7 +3,7 @@
 \usepackage{pgfpages}
 
 % ENABLE THIS FOR NOTES
-\setbeameroption{show notes on second screen=right} % Both
+% \setbeameroption{show notes on second screen=right} % Both
 
 \usepackage[sc,osf]{mathpazo}   % With old-style figures and real smallcaps.
 \linespread{1.025}              % Palatino leads a little more leading
@@ -91,10 +91,13 @@
 \includegraphics[height=0.8\textwidth]{./smallpt-render.png}
 \end{column}
 \begin{column}{0.48\textwidth}
-\pause
 \begin{itemize}
-\item 100 LoC C demo of a raytracer \pause
-\item Perfect for an optimization case study
+\item 99 LoC C++ raytracer.
+\item Perfect for an optimization case study.
+\item Ported to many languages, including Haskell! (Thanks to Vo Minh Thu(\texttt{noteed})).
+\item Start from \texttt{noteed}'s original source; SHA the output image for baseline,
+      keep optimizing.
+\item Plan: Quick walk through Haskell code, end up at C++ (\texttt{clang++}) performance.
 \end{itemize}
 \end{column}
 \end{columns}
@@ -305,7 +308,6 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 \begin{frame}[fragile]{Initial Haskell Code: \texttt{radiance} ($1\times$)}
 % 620027b45e40e5a4b18f36cabc70efe803f41a61
 \begin{minted}[fontsize=\tiny]{hs}
-...
 radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
 radiance ray@(Ray o d) depth xi = case intersects ray of
   (Nothing,_) -> return zerov
@@ -341,7 +343,6 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
             if 
               then do
                 rad <- radiance reflRay depth' xi
-                                                
 \end{minted}
 
 % \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
@@ -352,7 +353,6 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 \begin{frame}[fragile]{Initial Haskell Code: \texttt{radiance} ($1\times$) }
 % 620027b45e40e5a4b18f36cabc70efe803f41a61
 \begin{minted}[fontsize=\tiny]{hs}
-...
 radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
 radiance ray@(Ray o d) depth xi = case intersects ray of
   (Nothing,_) -> return zerov
@@ -388,12 +388,8 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
             if cos2t<0    -- Total internal reflection
               then do
                 rad <- radiance reflRay depth' xi
-                ...
-
-    if depth'>5
-    ...
 \end{minted}
-\raw{Sha256} hash of the output image --- \raw{4dac691082bb}
+% \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
 \end{frame}
 
 \note{full code}
@@ -405,23 +401,24 @@ smallpt :: Int -> Int -> Int -> IO ()
 smallpt w h nsamps = do
   ...
   c <- VM.replicate (w * h) 0
-  allocaArray 3 \xi ->
-    flip mapM_ [0..h-1] $ \y -> do
+  allocaArray 3 \xi -> -- Create mutable memory
+    flip mapM_ [0..h-1] $ \y -> do -- Loop
       writeXi xi y
-      for_ [0..w-1] \x -> do
+      for_ [0..w-1] \x -> do -- Loop
         let i = (h-y-1) * w + x
-        for_ [0..1] \sy -> do
-          for_ [0..1] \sx -> do
-            r <- newIORef 0
-            for_ [0..samps-1] \_s -> do
+        for_ [0..1] \sy -> do -- Loop
+          for_ [0..1] \sx -> do -- Loop
+            r <- newIORef 0 -- Create mutable memory
+            for_ [0..samps-1] \_s -> do -- Loops, Loops
               r1 <- (2*) <$> erand48 xi
               ...
-              rad <- radiance (Ray (org+d.*140) (norm d)) 0 xi
+              rad <- radiance (Ray (org+d.*140) (norm d)) 0 xi  -- Crunch
               ...
-              modifyIORef r (+ rad .* recip (fromIntegral samps))
+              modifyIORef r (+ rad .* recip (fromIntegral samps)) -- Write
             ci <- VM.unsafeRead c i
             Vec rr rg rb <- readIORef r
-            VM.unsafeWrite c i $ ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25
+            VM.unsafeWrite c i $ 
+                ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25 -- Write
 \end{minted}
 \end{frame}
 
@@ -473,17 +470,6 @@ foreign import ccall unsafe "erand48"
 \end{minted}
 
 \pause
-
-\begin{minted}{hs}
-data Foo = Foo !Int 
-data OptFoo  = OptFoo {-# UNPACK #-} !Int ~= OptFoo Int#
-\end{minted}
-
-\begin{minted}{cpp}
-struct Int { int64_t i; }
-struct Foo { Int *iptr; }
-struct OptFoo { int64_t i; }
-\end{minted}
 \end{frame}
 
 \note{This optimization removes indirection and laziness. }
@@ -531,7 +517,6 @@ struct OptFoo { int64_t i; }
 \end{minted}
 
 \begin{minted}{diff}
-@@ -84,7 +85,6 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
      let x = o `addv` (d `mulvs` t)
          n = norm $ x `subv` p
          nl = if n `dot` d < 0 then n else n `mulvs` (-1)
@@ -539,7 +524,7 @@ struct OptFoo { int64_t i; }
          depth' = depth + 1
          continue f = case refl of
            DIFF -> do
-@@ -140,6 +140,7 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
+...
      if depth'>5
        then do
          er <- erand48 xi
@@ -575,33 +560,16 @@ struct OptFoo { int64_t i; }
 
 
 \begin{minted}[fontsize=\small]{diff}
-...
 -erand48 :: IORef Word64 -> IO Double
 -erand48 !t =  do
 -  r <- readIORef t
 +data ET a = ET !Word64 !a deriving Functor
 +newtype Erand48 a = Erand48 { runErand48' :: Word64 -> ET a } deriving Functor
-+
 +instance Applicative Erand48 where
-...
 +instance Monad Erand48 where
-...
 +runWithErand48 :: Int -> Erand48 a -> a                                                                                                
-+runWithErand48 !y act =
-+   let yw = fromIntegral y
-+       prod = yw * yw * yw 
-+        ET _ !r = runErand48' act (prod `unsafeShiftL` 32) in r
-...
 +erand48 :: Erand48 Double
-+erand48 =  Erand48 \ !r ->
-   let x' = 0x5deece66d * r + 0xb
-       d_word = 0x3ff0000000000000 .|. ((x' .&. 0xffffffffffff) `unsafeShiftL` 4)
-       d = castWord64ToDouble d_word - 1.0
-\end{minted}
-\end{frame}
-
-\begin{frame}[fragile]{Remove mutation: Using \texttt{Erand48}}
-\begin{minted}[fontsize=\small]{diff}
+...
 -radiance :: Ray -> Int -> IORef Word64 -> IO Vec
 -radiance ray@(Ray o d) depth xi = case intersects ray of
 +radiance :: Ray -> Int -> Erand48 Vec
@@ -616,7 +584,6 @@ struct OptFoo { int64_t i; }
 -                              else (.* tp) <$> radiance (Ray x tdir) depth' xi
 +                              then (.* rp) <$> radiance reflRay depth'
 +                              else (.* tp) <$> radiance (Ray x tdir) depth'
-...
 \end{minted}
 \end{frame}
 
@@ -740,7 +707,6 @@ smallpt w h nsamps = do
 +    in if a>eps then Just a else if s>eps then Just s else Nothing
 ...
 \end{minted}
-TODO: maybe more interesting to talk about places where having strictness was **not** useful
 \end{frame}
 
 
@@ -820,11 +786,6 @@ intersects :: Ray -> (Double, Sphere)
 ...
 \end{minted}
 
- \begin{itemize}
- \item Can also be realized using \texttt{REWRITE} rules.
- \item GHC does not attempt to partially evaluate.
- \end{itemize}
-
 \end{frame}
 
 \begin{frame}[fragile]{Custom datatype for \texttt{intersects} parameter passing}
@@ -895,8 +856,7 @@ intersects :: Ray -> (Double, Sphere)
 \begin{frame}[fragile]{Use \texttt{LLVM} backend ($1.87\times$)}
 % 578b83c0afb6a8c7944529e2607ef9dbd5f2ab22
 \begin{minted}{diff}
-+package smallpt-opt
-+  ghc-options: -fllvm
++package smallpt-opt +  ghc-options: -fllvm
 \end{minted}
 \end{frame}
 
@@ -937,14 +897,15 @@ intersects :: Ray -> (Double, Sphere)
 
 \begin{frame}[fragile]{Takeaways}
 \begin{itemize}
-\item Haskell can be fast, given some sensitivity to performance.
-\item Having performance leads to a faster baseline
-      (unpacking, bang-patterns, \texttt{max},
-      \texttt{LLVM} by default, exporting \texttt{main}, \dots)
-\item Some others (unrolling \texttt{f}) is more subtle.
-\item Accumulate optimizations to accrue performance wins.
+\item The unrolling in 'intersects' is ugly.
+\item (We feel) the maintainability of this code hasn’t been significantly harmed.
+\item We're faster than clang++ and within 6\% of g++
+\item Haven't exhausted the optimization opportunities.
+\item GHC could learn to do several of these optimizations for us.
+\item Others are just good Haskell style. 
+\item Clean Haskell is often performant Haskell.
+\end{itemize}
 %\item \href{https://docs.google.com/spreadsheets/d/1YhZlDRGvnCtN8UQf_0ItmgRWI9MhL21HDTlBEKqgWHc/edit#gid=0}{Raw Google Sheet of our transformations}
 %\item \href{https://github.com/bollu/smallpths}{\texttt{github.com/bollu/smallpt-opt}}
-\end{itemize}
 \end{frame}
 \end{document}
