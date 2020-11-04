@@ -3,7 +3,7 @@
 \usepackage{pgfpages}
 
 % ENABLE THIS FOR NOTES
-% \setbeameroption{show notes on second screen=right} % Both
+\setbeameroption{show notes on second screen=right} % Both
 
 \usepackage[sc,osf]{mathpazo}   % With old-style figures and real smallcaps.
 \linespread{1.025}              % Palatino leads a little more leading
@@ -446,11 +446,22 @@ foreign import ccall unsafe "erand48"
 -module Main where
 +module Main (main) where
 \end{minted}
+
+\pause
+\begin{itemize}
+\item Exported functions could be used by something unknown.
+\item original versions must be available. \pause
+\item Make many optimizations unsound.
+\end{itemize}
 \end{frame}
 
-\note{Knowing what functions are used how enables many optimizations
-    that could otherwise would be detrimental or unsound
-    (eg: changing signatures based on demands)}
+\note{
+The very first thing to do is to let the compiler actually optimize.  Exported
+functions could be used by something unknown to the compiler and thus their
+original versions must be available. This makes many optimizations look bad or
+be unreasonable. Explicit export lists tell the compiler what you care about.
+They aren't just about encapsulation.
+}
 
 \begin{frame}[fragile]{Mark entries of Ray and Sphere as UNPACK and Strict ($1.07\times$)}
 % 1ad231a927f1a0582aee3f161e91372f7124d0c7
@@ -468,9 +479,23 @@ foreign import ccall unsafe "erand48"
 +                     {-# UNPACK #-} !Vec 
 +                     {-# UNPACK #-} !Vec !Refl
 \end{minted}
+
+\begin{minted}[fontsize=\small]{cpp}
+
+\end{minted}
 \end{frame}
 
-\note{This optimization removes indirection and laziness. }
+\note{ Strict means that they're evaluated ahead of time, not lazily of course.
+This can save a bit in their evaluation cost but means we always pay it. It is
+a trade off but here we know it will be a good one because we have almost
+perfect demand.  Unpacking is different. It removes indirection of doing a
+memory lookup for components but means we have to copy everything into the data
+structure that it is unpacked into.  We don't unpack ray because we'll be doing
+a lot of calculations on it and we want the Vec math to fuse and not get
+copied, when we use the Vecs they should be hot in cache anyway.  We do inline
+Sphere because we statically create them and while they'll also be hot in cache
+there is no benefit to taking any extra cost at all.
+}
 
 
 \begin{frame}[fragile]{Use a pattern synonym to unpack Refl in Sphere ($1.07\times$)}
@@ -501,11 +526,13 @@ foreign import ccall unsafe "erand48"
 
 \end{frame}
 
-\note{    While we weren't able to unpack Refl in the last step because it
-    is a sum type, we can if we use a trick modeled after an C Enum.
-    The use of COMPLETE is unsafe here because other values could be
-    constructed. For this small example though we rely on the fact
-    that we create values of Refl via the patterns.}
+\note{
+Until the recent addition of unboxed sums in GHC there was no way to unpack a type with multiple constructors.
+While unboxed sums exist now, their syntax is quite unpleasant.
+We're using an older trick to fake the unboxing here instead.
+In this case it isn't much of a win, but it illustrates the technique.
+}
+
 
 \begin{frame}[fragile]{Change from \texttt{maximum} on a list to \texttt{max} ($1.08\times$)}
 % e77b26f
@@ -554,6 +581,11 @@ foreign import ccall unsafe "erand48"
 \end{minted}
 \end{frame}
 
+\note{
+This function isn't used much so it doesn't really impact our performance but
+often building unnecessary data structures is detrimental.
+}
+
 \begin{frame}[fragile]{Remove mutability: \texttt{Erand48} Monad}
 
 
@@ -585,6 +617,16 @@ foreign import ccall unsafe "erand48"
 \end{minted}
 \end{frame}
 
+\note{
+The entire premise of this talk is that Haskell can be as fast as C.  Further
+any impedance mismatch, such as FFI almost universally has to have, carries
+some bookkeeping overhead. If our Haskell code was as fast as the C code moving
+the code into Haskell would be a win, if it was slightly slower it could still
+be a win.  Often considering your Haskell code's performance is a better option
+and easier than reimplementing something in C.
+As is the way with optimizations, this is not universally true.
+}
+
 \begin{frame}[fragile]{Removing mutation: eliminate \texttt{IORef}}
 \begin{minted}[fontsize=\small]{diff}
 -  c <- VM.replicate (w * h) 0
@@ -613,6 +655,16 @@ foreign import ccall unsafe "erand48"
 ...
 \end{minted}
 \end{frame}
+
+
+\note{
+All these mutability locations throw in extra RTS code, extra sequencing that
+blocks the compiler's optimization, and dependency chains.  
+Sometimes we need
+mutability for performance but in fact one primary optimization technique
+powering modern compilers is SSA. We almost start there as a functional
+language don't break it when you don't have a good reason.
+}
 
 
 \begin{frame}[fragile]{Set \textbf{everything} in \texttt{smallpt} to be strict ($1.17\times$)}
@@ -648,8 +700,12 @@ smallpt w h nsamps = do
 \end{minted}
 \end{frame}
 
-\note{This does make a difference but a small one. The question is which
-    ones matter.}
+\note{
+This is not a recommendation, this is a warning.
+We get a speedup here but it can also regress performance. Some of these bangs are regressions that are hidden.
+Don't senselessly bang everything in sight.
+}
+
 
 \begin{frame}[fragile]{Reduce to only useful strictnesses in \texttt{smallpt}($1.17\times$)}
 \begin{minted}{diff}
@@ -680,8 +736,13 @@ smallpt w h nsamps = do
 \end{minted}
 \end{frame}
 
-\note{ Some inspection shows us which bang patters are actually carrying
-    the weight. Most are unnecessary. }
+\note{
+Bangs force evaluation.
+The computation might diverge.
+Thus the compiler can no longer move the computation around or simplify it.
+Also if the work doesn't have to get done it still might be.
+A little thinking about how the variables are used or looking at core allows us to select which ones we bang selectively.
+}
 
 \begin{frame}[fragile]{Use strictness strategically in entire project}
 \begin{minted}[fontsize=\small]{diff}
@@ -704,6 +765,12 @@ smallpt w h nsamps = do
 ...
 \end{minted}
 \end{frame}
+
+\note{
+Sometimes (point out 'intersect') we have to rearrange the code though when we use bangs.
+Bangs tell the compiler to make more efficient code, but take away the compiler's options in how to do so. Only take away the compiler's liberties when it's using them poorly.
+After a little trial and error or reading core how to use bangs in your code will be intuitive.
+}
 
 
 \begin{frame}[fragile]{Remove \texttt{Maybe} from \texttt{intersect(s)} ($1.32\times$)}
@@ -741,7 +808,10 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 \end{minted}
 \end{frame}
 
-\note{Our innermost functions are of critical importance. Here we remove
+\note{
+    This is a far more performance critical version of what we saw with 'maximum' vs. 'max'.
+
+    Our innermost functions are of critical importance. Here we remove
     a Maybe which significantly reduces the boxing (which could have
     been mitigated with a StrictMaybe) and the cases.
 
@@ -764,9 +834,14 @@ intersects :: Ray -> (Double, Sphere)
      f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
 \end{minted}
 
-\note{This removes the list and this a potential level of indirections
-    and branches. Sadly GHC did not do this for us even though the
-    list was static.}
+\note{
+Sadly 'intersects' remains one of our most costly functions even after that improvement so we'll focus on it a bit.
+A common optimization is loop unrolling.
+Many compilers do this for us, and there are special versions of it like Duff's Device.
+Sadly GHC is the one compiler I've used that doesn't.
+We can though implement every variety of it I know of by hand in Haskell, and this is one of the simplest.
+I believe we could produce a rule that did it for a given function but I've not actually explored that.
+}
 
 \begin{minted}[fontsize=\small]{diff}
 -spheres :: [Sphere]
@@ -813,13 +888,12 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \end{frame}
 
 \note{
-    Its clear that f will consume these, so making it strict can have
-    some benefit. The problem is the right level here. One's first
-    take might be to set the parameters of 'f' to be strict, and that
-    can have benefits, but it leaves a lot on the table. Moving to
-    and unboxed tuple performs the computation faster but introduces
-    copying. Out 'T' datatype here has the right balance, it makes it
-    clear the data is strict but doesn't copy.
+Still trying to focus on the performance of 'intersects' we can optimize how it passes data to itself and its caller.
+We want the data to be strict so the compiler knows the tuple's members will always be evaluated, but we want to avoid copying.
+A normal tuple lacks strictness information.
+An unboxed tuple sadly forces copying because of its unpacked nature. Sphere is quite large, and will be expensive to copy.
+What we need is a strict tuple, and we create one for just this usage.
+This exists in libraries of course, but we wanted to illustrate it.
 }
 
 \begin{frame}[fragile]{Optimize file writing}
@@ -846,8 +920,11 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \end{minted}
 \end{frame}
 
-\note{Strings are slow and the code was even using a slow conversion
-    path to strings.}
+\note{
+We're getting quite a bit faster now, but there's still some small pieces of low lying fruit.
+Strings are fairly inefficient and the conversion functions to them we use aren't particularly efficient.
+'bytestring' has some efficient writing code, so we just convert to that for a modest gain. 
+}
 
 
 \begin{frame}[fragile]{Use \texttt{LLVM} backend ($1.87\times$)}
@@ -858,10 +935,13 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \end{minted}
 \end{frame}
 
-\note{The LLVM backend can pick up assembly level optimizations
-      that GHC has missed. Some types of code runs worse with LLVM, but
-      since this code is number crunching heavy, this does well.}
-
+\note{
+Finally, this particular code is quite numeric heavy.
+There are optimizations for numeric heavy code we're missing in GHC.
+LLVM has an extensive library of laws to optimize low level numeric ops. 
+LLVM is too low-level to understand haskell as haskell. It makes decisions with the tacit assumption that the assembly came from a C-like language, which is often to the detriment of a Haskell-like language.
+In this case, as the code is “fortran-like”, LLVM wins.
+}
 
 \begin{frame}[fragile]{The view from the mountaintop}
 
@@ -906,4 +986,13 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 %\item \href{https://docs.google.com/spreadsheets/d/1YhZlDRGvnCtN8UQf_0ItmgRWI9MhL21HDTlBEKqgWHc/edit#gid=0}{Raw Google Sheet of our transformations}
 %\item \href{https://github.com/bollu/smallpths}{\texttt{github.com/bollu/smallpt-opt}}
 \end{frame}
+
+\note{
+The unrolling in 'intersects' is ugly but other than that optimization it is our opinion that the maintainability of this code hasn’t been significantly harmed by improving its performance.
+We're faster than clang++ and within 6% of g++, we're closer to g++ than clang++.
+We haven't exhausted the optimization opportunities.
+I believe GHC could learn to do several of these optimizations for us.
+Many of the others are just good Haskell style.
+Clean Haskell is often performant Haskell.
+}
 \end{document}
