@@ -467,6 +467,10 @@ They aren't just about encapsulation.
 % 1ad231a927f1a0582aee3f161e91372f7124d0c7
 
 \begin{minted}[fontsize=\small]{diff}
+data Vec = Vec {-# UNPACK #-} !Double 
+               {-# UNPACK #-} !Double 
+               {-# UNPACK #-} !Double
+
 -data Ray = Ray Vec Vec -- origin, direction
 +data Ray = Ray {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec -- origin, direction
 
@@ -481,7 +485,10 @@ They aren't just about encapsulation.
 \end{minted}
 
 \begin{minted}[fontsize=\small]{cpp}
-
+struct Vec { double x, y, z; }
+struct Ray { std::function<Vec()> v; std::function<Vec()> w; };
+struct RayUnpack { double xv, yv, int zv;
+                   double xw, yw, zw; };
 \end{minted}
 \end{frame}
 
@@ -705,6 +712,35 @@ This is not a recommendation, this is a warning.
 We get a speedup here but it can also regress performance. Some of these bangs are regressions that are hidden.
 Don't senselessly bang everything in sight.
 }
+
+\begin{frame}[fragile]{Why strictness may be bad}
+\begin{minted}[fontsize=\small]{hs}
+let foo = let x = error "ERR" in \y -> y
+let foo' = let !x = error "ERR" in \y -> y
+\end{minted}
+\pause
+\begin{minted}[fontsize=\small]{hs}
+let fooOpt = \y -> y
+let foo'Opt = \y -> y  -- ERROR! forcing foo' should give "ERR"
+\end{minted}
+\pause
+\begin{minted}[fontsize=\small]{hs}
+let tuple = (42, error "urk")
+let bar = let (x, y) = tuple in \z -> x + z
+\end{minted}
+\pause
+\begin{minted}[fontsize=\small]{hs}
+let barOpt = \z -> 42 + z
+\end{minted}
+\pause
+\begin{minted}[fontsize=\small]{hs}
+let bar' = let (x, !y) = tuple in \z -> x + z
+\end{minted}
+\pause
+\begin{minted}[fontsize=\small]{hs}
+let bar'Opt =  \z -> 42 + z  --  ERROR: forcing bar' should give "urk"
+\end{minted}
+\end{frame}
 
 
 \begin{frame}[fragile]{Reduce to only useful strictnesses in \texttt{smallpt}($1.17\times$)}
