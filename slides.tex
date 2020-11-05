@@ -364,12 +364,14 @@ norm :: Vec -> Vec
 norm v = v .* recip (len v)
 dot :: Vec -> Vec -> Double
 maxv :: Vec -> Double
+
 data Ray = Ray Vec Vec -- origin, direction
 data Refl = DIFF | SPEC | REFR -- material types, used in radiance
-
 -- | radius, position, emission, color, reflection
 data Sphere = Sphere Double Vec Vec Vec Refl
 \end{minted}
+
+% \note[item]{Draw attention to \texttt{Ray, Sphere} not having unpack}
 \end{frame}
 
 \begin{frame}[fragile]{Initial Haskell Code: scene data}
@@ -393,20 +395,22 @@ spheres =
 intersect :: Ray -> Sphere -> Maybe Double
 intersect (Ray o d) (Sphere r p _e _c _refl) =
   if det<0 then Nothing else f (b-sdet) (b+sdet)
-  where op = p - o
+  where op = p - o -- Numeric
         eps = 1e-4
         b = dot op d
-        det = b*b - dot op op + r*r
+        det = b*b - dot op op + r*r -- Numeric
         sdet = sqrt det
         f a s = if a>eps then Just a else if s>eps then Just s else Nothing
 intersects :: Ray -> (Maybe Double, Sphere)
 intersects ray = (k, s)
-  where (k,s) = foldl' f (Nothing,undefined) spheres
+  where (k,s) = foldl' f (Nothing,undefined) spheres -- Spheres iterated over
         f (k',sp) s' = case (k',intersect ray s') of
                   (Nothing,Just x) -> (Just x,s')
                   (Just y,Just x) | x < y -> (Just x,s')
                   _ -> (k',sp)
 \end{minted}
+\note[item]{Draw attention the amount of numeric  stuff}
+\note[item]{Draw attention the use of the list of spheres}
 \end{frame}
 
 \begin{frame}[fragile]{Initial Haskell Code: \texttt{radiance} ($1\times$) }
@@ -451,7 +455,9 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 \end{minted}
 % \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
 
-\note{full code}
+% \note[item]{Branch heavy}
+% \note[item]{Recursive}
+% \note[item]{Uses an RNG}
 \end{frame}
 
 
@@ -482,6 +488,10 @@ smallpt w h nsamps = do
                 ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25 -- Write
             ...
 \end{minted}
+
+\note[item]{Uses mutability}
+\note[item]{Performs number crunchy loops}
+\note[item]{Finally, writes results out}
 \end{frame}
 
 \begin{frame}[fragile]{Initial Haskell Code: File I/O  ($1\times$)}
@@ -492,6 +502,7 @@ smallpt w h nsamps = do
           Vec r g b <- VM.unsafeRead c i
           hPrintf hdl "%d %d %d " (toInt r) (toInt g) (toInt b)
 \end{minted}
+% \note[item]{Point out the use of printf}
 \end{frame}
 
 \begin{frame}[fragile]{Initial Haskell Code: RNG ($1\times$)}
@@ -499,6 +510,8 @@ smallpt w h nsamps = do
 foreign import ccall unsafe "erand48"
   erand48 :: Ptr CUShort -> IO Double
 \end{minted}
+% \note[item]{We use the RNG to decide randomly in which direction to send rays}
+% \note[item]{Point out the use of foreign CCall.}
 \end{frame}
 
 
@@ -778,11 +791,9 @@ smallpt w h nsamps = do
 +            pure $! ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25
 \end{minted}
 
-\note{
-This is not a recommendation, this is a warning.
-We get a speedup here but it can also regress performance. Some of these bangs are regressions that are hidden.
-Don't senselessly bang everything in sight.
-}
+\note[item]{This is not a recommendation, this is a warning.}
+\note[item]{We get a speedup here but it can also regress performance. Some of these bangs are regressions that are hidden.}
+\note[iem]{Don't senselessly bang everything in sight. }
 
 \end{frame}
 
@@ -813,6 +824,11 @@ let bar' = let (x, !y) = tuple in \z -> x + z
 \begin{minted}[fontsize=\small]{hs}
 let bar'Opt =  \z -> 42 + z  --  ERROR: forcing bar' should give "urk"
 \end{minted}
+\note[item]{bangs remove freedom from the compiler}
+\note[item]{bangs force large objects to be evaluated}
+\note[item]{Haskell is awesome because equational reasoning.}
+\note[item]{Bangs are not great with equational reasoning.}
+\note[item]{judiciously use bangs. Too many remove choice from the compiler.}
 \end{frame}
 
 
@@ -844,14 +860,11 @@ let bar'Opt =  \z -> 42 + z  --  ERROR: forcing bar' should give "urk"
 +            pure (ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25)
 \end{minted}
 
-\note{
-Bangs force evaluation.
-The computation might diverge.
-Thus the compiler can no longer move the computation around or simplify it.
-Also if the work doesn't have to get done it still might be.
-A little thinking about how the variables are used or looking at core allows us to select which ones we bang selectively.
-}
-
+\note{ Bangs force evaluation.}
+\note{The computation might diverge.}
+\note{Thus the compiler can no longer move the computation around or simplify it.}
+\note{Also if the work doesn't have to get done it still might be.}
+\note{A little thinking about how the variables are used or looking at core allows us to select which ones we bang selectively.}
 \end{frame}
 
 \begin{frame}[fragile]{Use strictness strategically in entire project}
@@ -939,14 +952,12 @@ intersects :: Ray -> (Double, Sphere)
      f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
 \end{minted}
 
-\note{
-Sadly 'intersects' remains one of our most costly functions even after that improvement so we'll focus on it a bit.
-A common optimization is loop unrolling.
-Many compilers do this for us, and there are special versions of it like Duff's Device.
-Sadly GHC is the one compiler I've used that doesn't.
-We can though implement every variety of it I know of by hand in Haskell, and this is one of the simplest.
-I believe we could produce a rule that did it for a given function but I've not actually explored that.
-}
+\note[item]{Sadly 'intersects' remains one of our most costly functions even after that improvement so we'll focus on it a bit.}
+\note[item]{A common optimization is loop unrolling.}
+\note[item]{Many compilers do this for us, and there are special versions of it like Duff's Device.}
+\note[item]{Sadly GHC is the one compiler I've used that doesn't.}
+\note[item]{We can though implement every variety of it I know of by hand in Haskell, and this is one of the simplest.}
+\note[item]{I believe we could produce a rule that did it for a given function but I've not actually explored that.}
 
 \begin{minted}[fontsize=\small]{diff}
 -spheres :: [Sphere]
@@ -1056,28 +1067,45 @@ In this case, as the code is “fortran-like”, LLVM wins.
 \begin{center}
 \includegraphics[height=0.6\textwidth]{./perfdata-gen.png}
 \end{center}
+\end{frame}
 
-%{\tiny
-%\begin{minted}{text}
-%64ca171 Replace CDouble with Double because its just a newtype.
-%4678326 Restrict the export list to 'main'.
-%1ad231a Mark entries of Ray and Sphere as UNPACK and Strict.
-%e1819a6 Use a pattern synonym to unpack Refl in Sphere.
-%e77b26f Change from maximum on a list to max.
-%48aeb46 Convert erand48 to pure Haskell.
-%36eb49e Change erand48 to IORefU.
-%c114ace Rewrite the remaining IORef into a foldM.
-%44299aa Remove the Data.Vector.Mutable by being purer.
-%e62177b Set everything in smallpt to be strict.
-%585c5cb Reduce to only effectful strictnesses.
-%09f43c7 Remove Maybe from intersect(s)
-%4f28fcc Hand unroll the fold in intersects.
-%ed0b794 Marking interesects' f parameters strict.
-%8309e4a Strategic application of strictness.
-%7be5b4b Shorted erand48.
-%578b83c Use LLVM backend.
-%\end{minted}
-%}
+\begin{frame}[fragile]{Avoid CPU ieee754 slow paths}
+\begin{minted}{hs}
+ intersect :: Ray -> Sphere -> Double
+ intersect (Ray o d) (Sphere r p _e _c _refl) =
+   if det<0
+-  then 1/0.0
++  then 1e20
+   else
+    ...
+-    in if a>eps then a else if s>eps then s else 1/0.0
++    in if a>eps then a else if s>eps then s else 1e20
+ 
+...
+ radiance :: Ray -> Int -> Erand48 Vec
+ radiance ray@(Ray o d) depth = case intersects ray of
+-  (T t _) | t == 1/0.0 -> return 0
++  (T 1e20 _) -> return 0
+   ...
+\end{minted}
+
+\note[item]{We used +Inf to match the Maybeness}
+\note[item]{C++ code set 1e20 s the horizon}
+\note[item]{Mechanical sympathy is important.}
+\note[item]{Know how the CPU (abstractly) executes.}
+\end{frame}
+
+
+\begin{frame}[fragile]{Fix differences with C++ version}
+\begin{minted}{diff}
+-                  if depth>2
++                  if depth'>2 -- depth' = depth + 1
+...
+\end{minted}
+\note[item]{Since the sha1 of the output didn't match the C++ version we started investigating.}
+\note[item]{clang++, g++ actually produce different sha1s}
+\note[item]{unincremented depth was being used in one branch, causing us to do more work}
+\note[item]{now confident to say we're doing the same computation as C++}
 \end{frame}
 
 
@@ -1093,15 +1121,6 @@ In this case, as the code is “fortran-like”, LLVM wins.
 \end{itemize}
 %\item \href{https://docs.google.com/spreadsheets/d/1YhZlDRGvnCtN8UQf_0ItmgRWI9MhL21HDTlBEKqgWHc/edit#gid=0}{Raw Google Sheet of our transformations}
 %\item \href{https://github.com/bollu/smallpths}{\texttt{github.com/bollu/smallpt-opt}}
-
-\note{
-The unrolling in 'intersects' is ugly but other than that optimization it is our opinion that the maintainability of this code hasn’t been significantly harmed by improving its performance.
-We're faster than clang++ and within 6% of g++, we're closer to g++ than clang++.
-We haven't exhausted the optimization opportunities.
-I believe GHC could learn to do several of these optimizations for us.
-Many of the others are just good Haskell style.
-Clean Haskell is often performant Haskell.
-}
 
 \end{frame}
 \end{document}
