@@ -102,6 +102,10 @@
 \end{columns}
 
 \note[item]{\textbf{S}}
+\note[item]{99 LoC \texttt{C++}: \textbf{small}  \textbf{p}ath \textbf{t}racer.}
+\note[item]{Ported to many languages, including Haskell!}
+\note[item]{Haskell port was by Vo Minh Thu. Thanks a ton!}
+\note[item]{Start from \texttt{noteed}'s original source; SHA the output image from the Haskell source for baseline.}
 \note[item]{Perfect for an optimization case study.}
 \note[item]{Plan: Quick walk through Haskell code, end up at \texttt{C++} (\texttt{clang++}) performance.}
 \end{frame}
@@ -887,12 +891,15 @@ smallpt w h nsamps = do
 \begin{frame}[fragile]{Why strictness may be bad}
 \begin{minted}[fontsize=\small]{hs}
 let foo = let x = error "ERR" in \y -> y
+let fooOpt = \y -> y
+\end{minted}
+\pause
+\begin{minted}[fontsize=\small]{hs}
 let foo' = let !x = error "ERR" in \y -> y
 \end{minted}
 \pause
 \begin{minted}[fontsize=\small]{hs}
-let fooOpt = \y -> y
-let foo'Opt = \y -> y  -- ERROR! forcing foo' should give "ERR"
+let foo'Opt = \y -> y  -- ERROR! forcing foo'=foo'Opt should give "ERR"
 \end{minted}
 % \pause
 % \begin{minted}[fontsize=\small]{hs}
@@ -912,11 +919,13 @@ let foo'Opt = \y -> y  -- ERROR! forcing foo' should give "ERR"
 % let bar'Opt =  \z -> 42 + z  --  ERROR: forcing bar' should give "urk"
 % \end{minted}
 \note[item]{\textbf{S}}
-\note[item]{bangs remove freedom from the compiler}
-\note[item]{bangs force large objects to be evaluated}
-\note[item]{Haskell is awesome because equational reasoning.}
-\note[item]{Bangs are not great with equational reasoning.}
-\note[item]{judiciously use bangs. Too many remove choice from the compiler.}
+\note[item]{Consider the function foo and fooOpt. These are equivalent}
+\note[item]{The fact that x is not used allows us to eliminiate computing x}
+\note[item]{Consider the next version}
+\note[item]{Illegal, we need to have x, because it doesn't produce ERR}
+\note[item]{we can't equationally reason about the program anymore.}
+\note[item]{Makes it harder for GHC. GHC is conservative about bangs}
+\note[item]{Inhibits compiler from optimizing}
 \end{frame}
 
 
