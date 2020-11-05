@@ -94,16 +94,15 @@
 \begin{column}{0.48\textwidth}
 \begin{itemize}
 \item 99 LoC \texttt{C++}: \textbf{small}  \textbf{p}ath \textbf{t}racer.
-\item Perfect for an optimization case study.
 \item Ported to many languages, including Haskell! (Thanks to Vo Minh Thu/\texttt{noteed}).
-\item Start from \texttt{noteed}'s original source; SHA the output image for baseline,
-      keep optimizing.
-\item Plan: Quick walk through Haskell code, end up at \texttt{C++} (\texttt{clang++}) performance.
+\item Start from \texttt{noteed}'s original source; SHA the output image from the Haskell source for baseline.
 \end{itemize}
 \end{column}
 \end{columns}
 
 \note[item]{\textbf{S}}
+\note[item]{Perfect for an optimization case study.}
+\note[item]{Plan: Quick walk through Haskell code, end up at \texttt{C++} (\texttt{clang++}) performance.}
 \end{frame}
 
 \begin{frame}[fragile]{What is smallpt anyway?}
@@ -129,7 +128,8 @@ Sphere spheres[] = {//Scene: radius, position, emission, color, material
 \end{minted}
 % \end{adjustwidth}
 \note[item]{\textbf{S}}
-\note[item]{Its recursive}
+\note[item]{Has geometric primitives: vectors, spheres, materials}
+\note[item]{Entirely number-based, no real data structure}
 \end{frame}
 
 
@@ -166,7 +166,8 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 \end{minted}
 
 \note[item]{\textbf{S}}
-\note[item]{Say that the core function is radiance}
+\note[item]{Most of the compute cost is spent in the function that traces rays.}
+\note[item]{is called radiance}
 \end{frame}
 
 
@@ -202,7 +203,7 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 } 
 \end{minted}
 \note[item]{\textbf{S}}
-\note[item]{Say that it's recursive}
+\note[item]{Recursively calls itself a bunch of times}
 \end{frame}
 
 \begin{frame}[fragile]{What is smallpt anyway?}
@@ -237,7 +238,7 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 } 
 \end{minted}
 \note[item]{\textbf{S}}
-\note[item]{...with control flow}
+\note[item]{Recursion is guarded by a lot of control flow}
 \end{frame}
 
 
@@ -273,7 +274,42 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 } 
 \end{minted}
 \note[item]{\textbf{S}}
-\note[item]{and lots of arithmetic}
+\note[item]{The control flow and computation is very numeric in nature}
+\end{frame}
+
+\begin{frame}[fragile]{What is smallpt anyway?}
+\footnotesize
+\begin{minted}{cpp}
+Vec radiance(const Ray &r, int depth, unsigned short *Xi){ 
+                                                                      
+                                                                      
+                                                                   
+                                                            
+  Vec x=r.o+r.d*t, n=(x-obj.p).norm(), nl=n.dot(r.d)<0?n:n*-1, f=obj.c; 
+                                                                         
+  if (         ) if (erand48(Xi)  )            else 
+  if (                ){                  
+                     erand48(Xi)     erand48(Xi)
+                                                                  
+                                                                   
+                          radiance
+  } else if (                )            
+                          radiance
+                                                                         
+                                                                        
+                                                                     
+  if ((cos2t=1-nnt*nnt*(1-ddn*ddn))<0)
+                          radiance
+                                                                       
+                                                                        
+                                                                         
+                                   erand48(Xi)
+    radiance                      radiance
+    radiance                      radiance
+} 
+\end{minted}
+\note[item]{\textbf{S}}
+\note[item]{We use erand48 for randomness}
 \end{frame}
 
 
@@ -309,7 +345,7 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 } 
 \end{minted}
 \note[item]{\textbf{S}}
-\note[item]{Talk about how dense the source is to fit in 99 lines.}
+\note[item]{The full code continues to be more of the same}
 \end{frame}
 
 
@@ -325,8 +361,9 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
                                                               
                          
                                 
-        continue f = case refl of
+        continue f = case refl of - BRANCHING
           DIFF -> do
+            r1 <- ((2*pi)*) `fmap` erand48 xi -- RNG
                                                 
                                
                                 
@@ -338,7 +375,7 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
                                             
           SPEC -> do
                                                          
-            rad <- radiance 
+            rad <- radiance  -- RECURSION
                                             
           REFR -> do
                                                                                                      
@@ -355,7 +392,7 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 \end{minted}
 
 \note[item]{\textbf{S}}
-\note[item]{show the same thing, this time in haskell}
+\note[item]{the original source has the same computation in haskell}
 % \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
 \end{frame}
 
@@ -380,7 +417,8 @@ data Sphere = Sphere Double Vec Vec Vec Refl
 \end{minted}
 
 \note[item]{\textbf{S}}
-\note[item]{Draw attention to \texttt{Ray, Sphere} not having unpack}
+\note[item]{We implement the same data structures in Haskell}
+\note[item]{Note that \texttt{Ray, Sphere} not having unpack}
 \end{frame}
 
 \begin{frame}[fragile]{Initial Haskell Code: scene data}
@@ -397,6 +435,9 @@ spheres =
   , Sphere 16.5 (Vec 73 16.5 78)         0 0.999 REFR --Glas
   , Sphere 600  (Vec 50 681.33 81.6)    12 0     DIFF]--Lite
 \end{minted}
+
+\note[item]{\textbf{S}}
+\note[item]{this list will be walked many times, as it contains our scene information.}
 \end{frame}
 
 \begin{frame}[fragile]{Initial Haskell code: Sphere intersection}
@@ -419,8 +460,10 @@ intersects ray = (k, s)
                   _ -> (k',sp)
 \end{minted}
 \note[item]{\textbf{S}}
-\note[item]{Draw attention the amount of numeric  stuff}
-\note[item]{Draw attention the use of the list of spheres}
+\note[item]{Responsible for figuring out what the ray hits.}
+\note[item]{We iterate over the list of spheres.}
+\note[item]{Once again, numeric heavy.}
+\note[item]{Use a Maybe to indicate whether we've found an answer or not.}
 \end{frame}
 
 \begin{frame}[fragile]{Initial Haskell Code: \texttt{radiance} ($1\times$) }
@@ -1116,6 +1159,10 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \end{frame}
 
 
+\begin{frame}[fragile]{A second view from the mountaintop}
+\end{frame}
+
+
 \begin{frame}[fragile]{Takeaways}
 \begin{itemize}
 \item The unrolling in 'intersects' is ugly.
@@ -1130,5 +1177,11 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 %\item \href{https://github.com/bollu/smallpths}{\texttt{github.com/bollu/smallpt-opt}}
 
 \note[item]{\textbf{D}}
+\end{frame}
+
+\begin{frame}[fragile]{Raw data}
+\end{frame}
+
+\begin{frame}[fragile]{Raw data plotted}
 \end{frame}
 \end{document}
