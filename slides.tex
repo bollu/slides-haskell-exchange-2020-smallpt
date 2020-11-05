@@ -1013,6 +1013,15 @@ smallpt w h nsamps = do
 \begin{frame}[fragile]{Why strictness may be bad}
 \begin{minted}[fontsize=\small]{hs}
 let foo = let x = error "ERR" in \y -> y
+\end{minted}
+\pause
+\begin{minted}[fontsize=\small]{text}
+Prelude> let foo = let x = error "ERR" in \y -> y
+Prelude> foo 12
+12
+\end{minted}
+\pause
+\begin{minted}[fontsize=\small]{hs}
 let fooOpt = \y -> y
 \end{minted}
 \pause
@@ -1020,8 +1029,16 @@ let fooOpt = \y -> y
 let foo' = let !x = error "ERR" in \y -> y
 \end{minted}
 \pause
+\begin{minted}[fontsize=\small]{text}
+Prelude> let foo' = let !x = error "ERR" in \y -> y
+Prelude> foo' 12
+*** Exception: ERR
+CallStack (from HasCallStack):
+  error, called at <interactive>:5:21 in interactive:Ghci2
+\end{minted}
+\pause
 \begin{minted}[fontsize=\small]{hs}
-let foo'Opt = \y -> y  -- ERROR! forcing foo'=foo'Opt should give "ERR"
+let foo'Opt = \y -> y  -- INCORRECT! forcing foo'=foo'Opt should give "ERR"
 \end{minted}
 \note[item]{\textbf{S}}
 \note[item]{Consider the function foo and fooOpt. These are equivalent}
@@ -1363,7 +1380,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \begin{frame}[fragile]{Raw data}
 \begin{itemize}
 \item All test were on an otherwise idle \texttt{Equinix Metal c3.small.x86} (\texttt{Intel Xeon E-2278G} with \texttt{32GiB} RAM, Ubuntu \texttt{20.04}).
-      Averages over ten runs were reported. Performance numbers are stable.
+      Averages over ten runs were reported. \texttt{GHC }, \texttt{clang++ }, \texttt{g++ }.
 \end{itemize}
 
 {\tiny
