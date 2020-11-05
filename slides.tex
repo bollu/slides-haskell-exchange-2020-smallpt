@@ -3,9 +3,9 @@
 \usepackage{pgfpages}
 
 % ENABLE THIS FOR NOTES
-%\setbeameroption{hide notes} % Only slides
+\setbeameroption{hide notes} % Only slides
 %\setbeameroption{show only notes} % Only notes
-\setbeameroption{show notes on second screen=right} % Both
+%\setbeameroption{show notes on second screen=right} % Both
 
 \usepackage[sc,osf]{mathpazo}   % With old-style figures and real smallcaps.
 \linespread{1.025}              % Palatino leads a little more leading
@@ -851,7 +851,7 @@ struct RayUnpack { double xv, yv, int zv;
 \includegraphics[height=0.6\textwidth]{perfdata-upto-66c39-gen.png}
 \end{frame}
 
-\begin{frame}[fragile]{ Convert \texttt{erand48} to pure Haskell ($1.09\times$)}
+\begin{frame}[fragile]{ Convert \texttt{erand48} to pure Haskell ($1.10\times$)}
 % 48aeb46
 \begin{minted}[fontsize=\small]{diff}
 -foreign import ccall unsafe "erand48"
@@ -892,7 +892,7 @@ struct RayUnpack { double xv, yv, int zv;
 \end{frame}
 
 
-\begin{frame}[fragile]{Remove mutability: \texttt{Erand48} Monad}
+\begin{frame}[fragile]{Remove mutability: \texttt{Erand48} Monad ($1.15\times$)}
 
 
 \begin{minted}[fontsize=\small]{diff}
@@ -932,7 +932,7 @@ struct RayUnpack { double xv, yv, int zv;
 \end{frame}
 
 
-\begin{frame}[fragile]{Removing mutation: eliminate \texttt{IORef} and \texttt{Data.Vector.Mutable}}
+\begin{frame}[fragile]{Remove mutability: eliminate \texttt{IORef} and \texttt{Data.Vector.Mutable} ($1.15\times$)}
 \begin{minted}[fontsize=\small]{diff}
 -  c <- VM.replicate (w * h) 0
 -  xi <- newIORef 0
@@ -972,7 +972,7 @@ struct RayUnpack { double xv, yv, int zv;
 \end{frame}
 
 
-\begin{frame}[fragile]{Set \textbf{everything} in \texttt{smallpt} to be strict ($1.17\times$)}
+\begin{frame}[fragile]{Set \textbf{everything} in \texttt{smallpt} to be strict ($1.15\times$)}
 % e62177b
 \begin{minted}[fontsize=\small]{diff}
 smallpt :: Int -> Int -> Int -> IO ()
@@ -1058,7 +1058,7 @@ let foo'Opt = \y -> y  -- ERROR! forcing foo'=foo'Opt should give "ERR"
 
 
 
-\begin{frame}[fragile]{ Reduce to only useful strictnesses in \texttt{smallpt}($1.17\times$)}
+\begin{frame}[fragile]{ Reduce to only useful strictnesses in \texttt{smallpt}($1.15\times$)}
 \begin{minted}{diff}
 -  let !samps = nsamps `div` 4
 -      !org = Vec 50 52 295.6
@@ -1096,7 +1096,7 @@ let foo'Opt = \y -> y  -- ERROR! forcing foo'=foo'Opt should give "ERR"
 \includegraphics[height=0.6\textwidth]{perfdata-upto-361eb-gen.png}
 \end{frame}
 
-\begin{frame}[fragile]{Use strictness strategically in entire project}
+\begin{frame}[fragile]{Strategic application of strictness in entire project ($1.23\times$)}
 \begin{minted}[fontsize=\small]{diff}
 ...
 -  if det<0 then Nothing else f (b-sdet) (b+sdet)
@@ -1125,12 +1125,12 @@ let foo'Opt = \y -> y  -- ERROR! forcing foo'=foo'Opt should give "ERR"
 
 \end{frame}
 
-\begin{frame}[fragile]{Use strictness strategically in entire project}
+\begin{frame}[fragile]{Performance: Strategic application of strictness in entire project}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-7911c-gen.png}
 \end{frame}
 
 
-\begin{frame}[fragile]{Remove \texttt{Maybe} from \texttt{intersect(s)} ($1.32\times$)}
+\begin{frame}[fragile]{Remove \texttt{Maybe} from \texttt{intersect(s)} ($1.40\times$)}
 % 09f43c7
 \begin{minted}[fontsize=\small]{diff}
 | Old: Use Maybe Double to represent (was-hit?:bool, hit-distance: Double)
@@ -1172,12 +1172,12 @@ intersect at infinity, Double already actually covers the structure at play}
 \note[item]{This also reduces allocation.}
 \end{frame}
 
-\begin{frame}[fragile]{Performance: Remove \texttt{Maybe} from \texttt{intersect(s)} ($1.32\times$)}
+\begin{frame}[fragile]{Performance: Remove \texttt{Maybe} from \texttt{intersect(s)}}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-149bc-gen.png}
 \end{frame}
 
 
-\begin{frame}[fragile]{Hand unroll the fold in intersects ($1.35\times$)}
+\begin{frame}[fragile]{Hand unroll the fold in intersects ($1.43\times$)}
 % 4f28fcc
 
 \begin{minted}[fontsize=\small]{diff}
@@ -1213,11 +1213,11 @@ intersects :: Ray -> (Double, Sphere)
 
 \end{frame}
 
-\begin{frame}[fragile]{Performance: Hand unroll the fold in intersects ($1.35\times$)}
+\begin{frame}[fragile]{Performance: Hand unroll the fold in intersects}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-80931-gen.png}
 \end{frame}
 
-\begin{frame}[fragile]{Custom datatype for \texttt{intersects} parameter passing}
+\begin{frame}[fragile]{Custom datatype for \texttt{intersects} parameter passing $(1.46\times)$}
 \begin{minted}{diff}
 Old: Tuple with possibly-uenevaluated Double and Sphere
 New: Reference to a guaranteed-to-be-evaluated Double and Sphere
@@ -1256,11 +1256,11 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 
 \end{frame}
 
-\begin{frame}[fragile]{Custom datatype for \texttt{intersects} parameter passing}
+\begin{frame}[fragile]{Performance: Custom datatype for \texttt{intersects} parameter passing}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-07d68-gen.png}
 \end{frame}
 
-\begin{frame}[fragile]{Optimize file writing}
+\begin{frame}[fragile]{Optimize file writing: $(1.46\times)$}
 \begin{minted}{diff}
    build-depends:
        base >= 4.12 && < 4.15
@@ -1295,7 +1295,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \end{frame}
 
 
-\begin{frame}[fragile]{Use \texttt{LLVM} backend ($1.87\times$)}
+\begin{frame}[fragile]{Use \texttt{LLVM} backend ($2.04\times$)}
 % 578b83c0afb6a8c7944529e2607ef9dbd5f2ab22
 \begin{minted}{diff}
 +package smallpt-opt 
@@ -1320,7 +1320,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \note[item]{\textbf{D}}
 \end{frame}
 
-\begin{frame}[fragile]{Avoid CPU ieee754 slow paths}
+\begin{frame}[fragile]{Avoid CPU ieee754 slow paths  $(2.12\times)$}
 \begin{minted}{diff}
  intersect :: Ray -> Sphere -> Double
  intersect (Ray o d) (Sphere r p _e _c _refl) =
@@ -1348,7 +1348,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \end{frame}
 
 
-\begin{frame}[fragile]{Fix differences with C++ version}
+\begin{frame}[fragile]{Fix differences with C++ version $(2.32\times)$}
 \begin{minted}{diff}
 -                  if depth>2
 +                  if depth'>2 -- depth' = depth + 1
