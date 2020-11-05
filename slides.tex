@@ -1421,8 +1421,7 @@ in
 \begin{frame}[fragile]{Raw data}
 \begin{itemize}
 \item All test were on an otherwise idle \texttt{Equinix Metal c3.small.x86} (\texttt{Intel Xeon E-2278G} with \texttt{32GiB} RAM, Ubuntu \texttt{20.04}).
-      Averages over ten runs were reported. \texttt{GHC 8.10.2}, \texttt{clang version 10.0.0-4ubuntu1}, \texttt{gcc version 9.3.0 (Ubuntu 9.3.0-17ubuntu1~20.04)},
-      \texttt{LLVM version 10.0.0}
+      Averages over ten runs were reported. \texttt{[GHC 8.10.2]}, \texttt{[clang version 10.0.0-4ubuntu1]}, \texttt{[gcc version 9.3.0 (Ubuntu 9.3.0-17ubuntu1~20.04)]}, \texttt{[LLVM version 10.0.0]}
 \end{itemize}
 
 {\tiny
@@ -1454,6 +1453,7 @@ in
 \item We're likely faster than \texttt{C++} because we can see \texttt{erand48} that the C++ compiler cannot.
 \item We have the same SHA as the \texttt{clang++} version upto \texttt{150x150}. At \texttt{200x200} we start
       to see some small floating point differences.
+\item We check that we cast all the same rays in C++ and Haskell, and that their results are within an epsilon of each other.
 \end{itemize}
 \end{frame}
 
