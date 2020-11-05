@@ -685,7 +685,7 @@ foreign import ccall unsafe "erand48"
 \note[item]{compiler has "perfect knowledge" about these functions now}
 \end{frame}
 
-\begin{frame}[fragile]{Performance: Restrict export list to \texttt{main}}
+\begin{frame}[fragile]{Performance: Restrict export list to \texttt{main} ($1.13\times$)}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-76a82-gen.png}
 \end{frame}
 
@@ -773,7 +773,7 @@ struct RayUnpack { double xv, yv, int zv;
 \note[item]{Don't unpack Ray, because each Vec undergoes a lot of computation.}
 \end{frame}
 
-\begin{frame}[fragile]{Performance: Mark entries of Ray and Sphere as UNPACK and Strict}
+\begin{frame}[fragile]{Performance: Mark entries of Ray and Sphere as UNPACK and Strict ($1.07\times$)}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-f3819-gen.png}
 \end{frame}
 
@@ -814,7 +814,7 @@ struct RayUnpack { double xv, yv, int zv;
 \end{frame}
 
 
-\begin{frame}[fragile]{Performance: Use a pattern synonym to unpack Refl in Sphere}
+\begin{frame}[fragile]{Performance: Use a pattern synonym to unpack Refl in Sphere ($1.07\times$)}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-fc364-gen.png}
 \end{frame}
 
@@ -847,7 +847,7 @@ struct RayUnpack { double xv, yv, int zv;
 \note[item]{Doesn't really help much in this case}
 \end{frame}
 
-\begin{frame}[fragile]{Performance: Change from \texttt{maximum} on a list to \texttt{max}}
+\begin{frame}[fragile]{Performance: Change from \texttt{maximum} on a list to \texttt{max}  ($1.08\times$)}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-66c39-gen.png}
 \end{frame}
 
@@ -887,7 +887,7 @@ struct RayUnpack { double xv, yv, int zv;
 \note[item]{As is the way with optimizations, this is not universally true.}
 \end{frame}
 
-\begin{frame}[fragile]{Performance:Convert \texttt{erand48} to pure Haskell}
+\begin{frame}[fragile]{Performance:Convert \texttt{erand48} to pure Haskell ($1.10\times$)}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-5704a-gen.png}
 \end{frame}
 
@@ -967,7 +967,7 @@ struct RayUnpack { double xv, yv, int zv;
 
 
 
-\begin{frame}[fragile]{Performance: Remove mutability}
+\begin{frame}[fragile]{Performance: Remove mutability  ($1.15\times$)}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-eb9a3-gen.png}
 \end{frame}
 
@@ -1012,7 +1012,7 @@ smallpt w h nsamps = do
 \end{frame}
 
 
-\begin{frame}[fragile]{Performance: Set \textbf{everything} in \texttt{smallpt} to be strict}
+\begin{frame}[fragile]{Performance: Set \textbf{everything} in \texttt{smallpt} to be strict ($1.15\times$)}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-5caf8-gen.png}
 \end{frame}
 
@@ -1058,7 +1058,7 @@ let foo'Opt = \y -> y  -- ERROR! forcing foo'=foo'Opt should give "ERR"
 
 
 
-\begin{frame}[fragile]{ Reduce to only useful strictnesses in \texttt{smallpt}($1.15\times$)}
+\begin{frame}[fragile]{ Reduce to only useful strictnesses in \texttt{smallpt} ($1.15\times$)}
 \begin{minted}{diff}
 -  let !samps = nsamps `div` 4
 -      !org = Vec 50 52 295.6
@@ -1092,7 +1092,7 @@ let foo'Opt = \y -> y  -- ERROR! forcing foo'=foo'Opt should give "ERR"
 \note[item]{A little thinking about how the variables are used or looking at core allows us to select which ones we bang selectively.}
 \end{frame}
 
-\begin{frame}[fragile]{Reduce to only useful strictnesses in \texttt{smallpt}}
+\begin{frame}[fragile]{Performance: Reduce to only useful strictnesses in \texttt{smallpt}  ($1.15\times$)}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-361eb-gen.png}
 \end{frame}
 
@@ -1125,7 +1125,7 @@ let foo'Opt = \y -> y  -- ERROR! forcing foo'=foo'Opt should give "ERR"
 
 \end{frame}
 
-\begin{frame}[fragile]{Performance: Strategic application of strictness in entire project}
+\begin{frame}[fragile]{Performance: Strategic application of strictness in entire project ($1.23\times$)}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-7911c-gen.png}
 \end{frame}
 
@@ -1172,7 +1172,7 @@ intersect at infinity, Double already actually covers the structure at play}
 \note[item]{This also reduces allocation.}
 \end{frame}
 
-\begin{frame}[fragile]{Performance: Remove \texttt{Maybe} from \texttt{intersect(s)}}
+\begin{frame}[fragile]{Performance: Remove \texttt{Maybe} from \texttt{intersect(s)} ($1.40\times$)}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-149bc-gen.png}
 \end{frame}
 
@@ -1213,7 +1213,7 @@ intersects :: Ray -> (Double, Sphere)
 
 \end{frame}
 
-\begin{frame}[fragile]{Performance: Hand unroll the fold in intersects}
+\begin{frame}[fragile]{Performance: Hand unroll the fold in intersects ($1.43\times$)}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-80931-gen.png}
 \end{frame}
 
@@ -1256,7 +1256,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 
 \end{frame}
 
-\begin{frame}[fragile]{Performance: Custom datatype for \texttt{intersects} parameter passing}
+\begin{frame}[fragile]{Performance: Custom datatype for \texttt{intersects} parameter passing $(1.46\times)$}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-07d68-gen.png}
 \end{frame}
 
@@ -1290,7 +1290,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \end{frame}
 
 
-\begin{frame}[fragile]{Performance: Optimize file writing}
+\begin{frame}[fragile]{Performance: Optimize file writing $(1.46\times)$}
 \includegraphics[height=0.6\textwidth]{perfdata-upto-4e141-gen.png}
 \end{frame}
 
@@ -1312,15 +1312,15 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 
 \end{frame}
 
-\begin{frame}[fragile]{The view from the mountaintop}
+\begin{frame}[fragile]{The view from the mountaintop ($2.04\times$)}
 
 \begin{center}
-\includegraphics[height=0.7\textwidth]{perfdata-upto-16c56-gen.png}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-16c56-gen.png}
 \end{center}
 \note[item]{\textbf{D}}
 \end{frame}
 
-\begin{frame}[fragile]{Avoid CPU ieee754 slow paths  $(2.12\times)$}
+\begin{frame}[fragile]{Avoid CPU \texttt{ieee754} slow paths $(2.12\times)$}
 \begin{minted}{diff}
  intersect :: Ray -> Sphere -> Double
  intersect (Ray o d) (Sphere r p _e _c _refl) =
@@ -1363,7 +1363,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 
 
 \begin{frame}[fragile]{A second view from the mountaintop}
-\includegraphics[height=0.7\textwidth]{perfdata-upto-9ee06-gen.png}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-9ee06-gen.png}
 \end{frame}
 
 
