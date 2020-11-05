@@ -525,15 +525,11 @@ foreign import ccall unsafe "erand48"
 \pause
 \begin{itemize}
 \item Exported functions could be used by something unknown.
-\item original versions must be available. \pause
-\item Make many optimizations unsound.
+\item Original versions must be available.
 \end{itemize}
-\note[item]{ The very first thing to do is to let the compiler actually optimize.}
-\note[item]{Exported
-functions could be used by something unknown to the compiler and thus their
-original versions must be available. This makes many optimizations look bad or
-be unreasonable. Explicit export lists tell the compiler what you care about.
-They aren't just about encapsulation. }
+\note[item]{The very first thing to do is to let the compiler actually optimize.}
+\note[item]{Compiler can't know how exported functions are used.}
+\note[item]{Export lists not just about encapsulation.}
 \end{frame}
 
 
@@ -565,10 +561,9 @@ struct RayUnpack { double xv, yv, int zv;
                    double xw, yw, zw; };
 \end{minted}
 
-\note[item]{Strictness in the arguments means that they're evaluated when instantiated, not when demanded. 
-This can save a bit in their evaluation cost but means we always pay it.
-It is a trade off but here we know it will be a good one because we have almost perfect demand.}
-\note[item]{Unpacking is different. It removes indirection from doing a memory lookup for components but means we have to copy everything into the data structure that it is unpacked into.}
+\note[item]{Strictness in the arguments means that they're evaluated when instantiated, not when demanded. }
+\note[item]{Unpacking removes indirection from doing a memory lookup for components.}
+\note[item]{Means we have to copy everything into the data structure that it is unpacked into.}
 \note[item]{We don't unpack ray because we'll be doing a lot of calculations on it and we want the Vec math to fuse and not get copied, when we use the Vecs they should be hot in cache anyway.}
 \note[item]{We do inline Sphere because we statically create them and while they'll also be hot in cache there is no benefit to taking any extra cost at all.}
 \end{frame}
