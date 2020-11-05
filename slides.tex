@@ -104,7 +104,7 @@
 \end{column}
 \end{columns}
 
-\note{Note for first slide: what is smallpt anyway?}
+\note[item]{\textbf{S}}
 \end{frame}
 
 \begin{frame}[fragile]{What is smallpt anyway?}
@@ -129,8 +129,11 @@ Sphere spheres[] = {//Scene: radius, position, emission, color, material
 }; 
 \end{minted}
 % \end{adjustwidth}
+\note[item]{\textbf{S}}
+\note[item]{Its recursive}
 \end{frame}
-\note{Its recursive}
+
+
 \begin{frame}[fragile]{What is smallpt anyway?}
 \footnotesize
 \begin{minted}{cpp}
@@ -347,7 +350,8 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
             ...
 \end{minted}
 
-\note{show the same thing, this time in haskell}
+\note[item]{\textbf{S}}
+\note[item]{show the same thing, this time in haskell}
 % \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
 \end{frame}
 
@@ -371,7 +375,8 @@ data Refl = DIFF | SPEC | REFR -- material types, used in radiance
 data Sphere = Sphere Double Vec Vec Vec Refl
 \end{minted}
 
-% \note[item]{Draw attention to \texttt{Ray, Sphere} not having unpack}
+\note[item]{\textbf{S}}
+\note[item]{Draw attention to \texttt{Ray, Sphere} not having unpack}
 \end{frame}
 
 \begin{frame}[fragile]{Initial Haskell Code: scene data}
@@ -409,6 +414,7 @@ intersects ray = (k, s)
                   (Just y,Just x) | x < y -> (Just x,s')
                   _ -> (k',sp)
 \end{minted}
+\note[item]{\textbf{S}}
 \note[item]{Draw attention the amount of numeric  stuff}
 \note[item]{Draw attention the use of the list of spheres}
 \end{frame}
@@ -455,9 +461,10 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 \end{minted}
 % \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
 
-% \note[item]{Branch heavy}
-% \note[item]{Recursive}
-% \note[item]{Uses an RNG}
+\note[item]{\textbf{S}}
+\note[item]{Branch heavy}
+\note[item]{Recursive}
+\note[item]{Uses an RNG}
 \end{frame}
 
 
@@ -489,6 +496,7 @@ smallpt w h nsamps = do
             ...
 \end{minted}
 
+\note[item]{\textbf{S}}
 \note[item]{Uses mutability}
 \note[item]{Performs number crunchy loops}
 \note[item]{Finally, writes results out}
@@ -510,8 +518,9 @@ smallpt w h nsamps = do
 foreign import ccall unsafe "erand48"
   erand48 :: Ptr CUShort -> IO Double
 \end{minted}
-% \note[item]{We use the RNG to decide randomly in which direction to send rays}
-% \note[item]{Point out the use of foreign CCall.}
+\note[item]{\textbf{S}}
+\note[item]{We use the RNG to decide randomly in which direction to send rays}
+\note[item]{Point out the use of foreign CCall.}
 \end{frame}
 
 
@@ -527,6 +536,7 @@ foreign import ccall unsafe "erand48"
 \item Exported functions could be used by something unknown.
 \item Original versions must be available.
 \end{itemize}
+\note[item]{\textbf{S}}
 \note[item]{The very first thing to do is to let the compiler actually optimize.}
 \note[item]{Compiler can't know how exported functions are used.}
 \note[item]{Export lists not just about encapsulation.}
@@ -561,11 +571,12 @@ struct RayUnpack { double xv, yv, int zv;
                    double xw, yw, zw; };
 \end{minted}
 
+\note[item]{\textbf{D}}
 \note[item]{Strictness in the arguments means that they're evaluated when instantiated, not when demanded. }
 \note[item]{Unpacking removes indirection from doing a memory lookup for components.}
 \note[item]{Means we have to copy everything into the data structure that it is unpacked into.}
-\note[item]{We don't unpack ray because we'll be doing a lot of calculations on it and we want the Vec math to fuse and not get copied, when we use the Vecs they should be hot in cache anyway.}
-\note[item]{We do inline Sphere because we statically create them and while they'll also be hot in cache there is no benefit to taking any extra cost at all.}
+\note[item]{We don't unpack ray (Lots of calculations on its components, want those to fuse)}
+\note[item]{Unpack Sphere - its static}
 \end{frame}
 
 \begin{frame}[fragile]{Use a pattern synonym to unpack Refl in Sphere ($1.07\times$)}
@@ -595,8 +606,9 @@ struct RayUnpack { double xv, yv, int zv;
  \end{minted}
 
 
-\note[item]{Until the recent addition of unboxed sums in GHC there was no way to unpack a type with multiple constructors.}
-\note[item]{While unboxed sums exist now, their syntax is quite unpleasant.}
+\note[item]{\textbf{D}}
+\note[item]{UnboxedSums are recent}
+\note[item]{UnboxedSums are very unpleasant}
 \note[item]{We're using an older trick to fake the unboxing here instead.}
 \note[item]{In this case it isn't much of a win, but it illustrates the technique.}
 
@@ -624,8 +636,10 @@ struct RayUnpack { double xv, yv, int zv;
 +        let !pr = maxv c
 \end{minted}
 
-\note[item]{finicky optimization. GHC does not evaluate at compile time, making optimizations like these necessary}
-\note[item]{This function isn't used much so it doesn't really impact our performance but often building unnecessary data structures is detrimental.}
+\note[item]{\textbf{D}}
+\note[item]{finicky optimization.}
+\note[item]{Minimal usage of this function.}
+\note[item]{GHC does not evaluate at compile time, only has RULES}
 \end{frame}
 
 \begin{frame}[fragile]{Convert \texttt{erand48} to pure Haskell ($1.09\times$)}
@@ -655,6 +669,7 @@ struct RayUnpack { double xv, yv, int zv;
        writeXi xi y
 \end{minted}
 
+\note[item]{\textbf{S}}
 \note[item]{The entire premise of this talk is that Haskell can be as fast as C.}
 \note[item]{We're opening the black box of what erand48 does to GHC}
 \note[item]{Further any impedance mismatch, such as FFI almost universally has to have, carries some bookkeeping overhead. }
@@ -693,10 +708,11 @@ struct RayUnpack { double xv, yv, int zv;
 +                              else (.* tp) <$> radiance (Ray x tdir) depth'
 \end{minted}
 
+\note[item]{\textbf{D}}
 \note[item]{All these mutability locations throw in extra RTS code, extra sequencing that blocks the compiler's optimization, and dependency chains.}
 \note[item]{Sometimes we need mutability for performance.}
-\note[item]{HOWEVERm one primary optimization technique powering modern compilers is SSA.}
-\note[item]{We almost start there as a functional language.}
+\note[item]{SSA is normal to compilers though.}
+\note[item]{We almost start at SSA as a functional language.}
 \note[item]{don't break it when you don't have a good reason.}
 
 \end{frame}
@@ -730,6 +746,7 @@ struct RayUnpack { double xv, yv, int zv;
 \end{minted}
 
 
+\note[item]{\textbf{D}}
 
 \end{frame}
 
@@ -766,6 +783,7 @@ smallpt w h nsamps = do
 +            pure $! ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25
 \end{minted}
 
+\note[item]{\textbf{D}}
 \note[item]{This is not a recommendation, this is a warning.}
 \note[item]{We get a speedup here but it can also regress performance. Some of these bangs are regressions that are hidden.}
 \note[iem]{Don't senselessly bang everything in sight. }
@@ -799,6 +817,7 @@ let bar' = let (x, !y) = tuple in \z -> x + z
 \begin{minted}[fontsize=\small]{hs}
 let bar'Opt =  \z -> 42 + z  --  ERROR: forcing bar' should give "urk"
 \end{minted}
+\note[item]{\textbf{S}}
 \note[item]{bangs remove freedom from the compiler}
 \note[item]{bangs force large objects to be evaluated}
 \note[item]{Haskell is awesome because equational reasoning.}
@@ -835,10 +854,11 @@ let bar'Opt =  \z -> 42 + z  --  ERROR: forcing bar' should give "urk"
 +            pure (ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25)
 \end{minted}
 
-\note[item]{ Bangs force evaluation.}
+\note[item]{\textbf{D}}
+\note[item]{Bangs force evaluation.}
 \note[item]{The computation might diverge.}
 \note[item]{Thus the compiler can no longer move the computation around or simplify it.}
-\note[item]{Also if the work doesn't have to get done it still might be.}
+\note[item]{Useless work.}
 \note[item]{A little thinking about how the variables are used or looking at core allows us to select which ones we bang selectively.}
 \end{frame}
 
@@ -863,10 +883,11 @@ let bar'Opt =  \z -> 42 + z  --  ERROR: forcing bar' should give "urk"
 ...
 \end{minted}
 
+\note[item]{\textbf{D}}
 \note[item]{Sometimes (point out 'intersect') we have to rearrange the code though when we use bangs.}
 \note[item]{Bangs tell the compiler to make more efficient code, but take away the compiler's options in how to do so.}
 \note[item]{Only take away the compiler's liberties when it's using them poorly.}
-\note[item]{After a little trial and error or reading core how to use bangs in your code will be intuitive.}
+\note[item]{Becomes intuitive.}
 
 \end{frame}
 
@@ -905,6 +926,7 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 +  (t,Sphere _r p e c refl) -> do
 \end{minted}
 
+\note[item]{\textbf{S}}
 \note[item]{This is a far more performance critical version of what we saw with 'maximum' vs. 'max'.}
 \note[item]{innermost functions are of critical importance. remove Maybe which significantly reduces the boxing}
 \note[item]{Since a Ray that fails to intersect something can be said to
@@ -926,12 +948,13 @@ intersects :: Ray -> (Double, Sphere)
      f (k', sp) s' = let !x = intersect ray s' in if x < k' then (x, s') else (k', sp)
 \end{minted}
 
-\note[item]{Sadly 'intersects' remains one of our most costly functions even after that improvement so we'll focus on it a bit.}
-\note[item]{A common optimization is loop unrolling.}
+\note[item]{\textbf{D}}
+\note[item]{'intersects' is very hot}
+\note[item]{Loop unrolling}
 \note[item]{Many compilers do this for us, and there are special versions of it like Duff's Device.}
-\note[item]{Sadly GHC is the one compiler I've used that doesn't.}
-\note[item]{We can though implement every variety of it I know of by hand in Haskell, and this is one of the simplest.}
-\note[item]{I believe we could produce a rule that did it for a given function but I've not actually explored that.}
+\note[item]{Sadly GHC doesn't}
+\note[item]{Can do variants by hand.}
+\note[item]{RULE could handle each one specificly (only exactly that one)?}
 
 \begin{minted}[fontsize=\small]{diff}
 -spheres :: [Sphere]
@@ -976,11 +999,13 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
          !nl = if dot n d < 0 then n else negate n
 \end{minted}
 
-\note[item]{Still trying to focus on the performance of 'intersects' we can optimize how it passes data to itself and its caller.}
-\note[item]{We want the data to be strict so the compiler knows the tuple's members will always be evaluated, but we want to avoid copying.}
+\note[item]{\textbf{D}}
+\note[item]{We can optimize data passing.}
+\note[item]{Want: Data strict, but not unpacked.}
+\note[item]{Compiler knows its evaluated but no copying}
 \note[item]{A normal tuple lacks strictness information.}
-\note[item]{An unboxed tuple sadly forces copying because of its unpacked nature. Sphere is quite large, and will be expensive to copy.}
-\note[item]{What we need is a strict tuple, and we create one for just this usage.}
+\note[item]{An unboxed tuple forces copying}
+\note[item]{Strict Tuple.}
 \note[item]{This exists in libraries of course, but we wanted to illustrate it.}
 
 \end{frame}
@@ -1008,9 +1033,8 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 +          (mconcat $ fmap (\(Vec r g b) -> toInt r <> toInt g <> toInt b) img)
 \end{minted}
 
-\note[item]{ We're getting quite a bit faster now}
-\note[item]{there's still some small pieces of low lying fruit.}
-\note[item]{Strings are fairly inefficient and the conversion functions to them we use aren't particularly efficient.}
+\note[item]{\textbf{D}}
+\note[item]{Strings are inefficient}
 \note[item]{'bytestring' has some efficient writing code, so we just convert to that for a modest gain.} 
 
 \end{frame}
@@ -1023,6 +1047,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 +  ghc-options: -fllvm
 \end{minted}
 
+\note[item]{\textbf{S}}
 \note[item]{Finally, this particular code is quite numeric heavy.}
 \note[item]{There are optimizations for numeric heavy code we're missing in GHC.}
 \note[item]{LLVM has an extensive library of laws to optimize low level numeric ops. }
@@ -1037,6 +1062,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \begin{center}
 \includegraphics[height=0.6\textwidth]{./perfdata-gen.png}
 \end{center}
+\note[item]{\textbf{D}}
 \end{frame}
 
 \begin{frame}[fragile]{Avoid CPU ieee754 slow paths}
@@ -1059,10 +1085,11 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
    ...
 \end{minted}
 
+\note[item]{\textbf{D}}
 \note[item]{We used +Inf to match the Maybeness}
 \note[item]{C++ code set 1e20 s the horizon}
 \note[item]{Mechanical sympathy is important.}
-\note[item]{Know how the CPU (abstractly) executes.}
+\note[item]{Know how the CPU (abstractly) executes - slow path / fast path.}
 \end{frame}
 
 
@@ -1072,6 +1099,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 +                  if depth'>2 -- depth' = depth + 1
 ...
 \end{minted}
+\note[item]{\textbf{S}}
 \note[item]{Since the sha1 of the output didn't match the C++ version we started investigating.}
 \note[item]{clang++, g++ actually produce different sha1s}
 \note[item]{unincremented depth was being used in one branch, causing us to do more work}
@@ -1092,5 +1120,6 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 %\item \href{https://docs.google.com/spreadsheets/d/1YhZlDRGvnCtN8UQf_0ItmgRWI9MhL21HDTlBEKqgWHc/edit#gid=0}{Raw Google Sheet of our transformations}
 %\item \href{https://github.com/bollu/smallpths}{\texttt{github.com/bollu/smallpt-opt}}
 
+\note[item]{\textbf{D}}
 \end{frame}
 \end{document}
