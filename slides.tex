@@ -110,6 +110,87 @@
 \note[item]{Plan: Quick walk through Haskell code, end up at \texttt{C++} (\texttt{clang++}) performance.}
 \end{frame}
 
+
+\begin{frame}[fragile]{A TL;DR of a path tracer}
+\begin{figure}
+\includegraphics[height=0.6\textwidth]{raytracing-eye.png}
+\end{figure}
+\note[item]{\textbf{S}}
+\note[item]{Brief spiritually correct description of how a path tracer works}
+\note[item]{Main problem: what light ray hits the eye?}
+\note[item]{Idea: trace backwards; start from the eye, hypothesize light came from a direction}
+\note[item]{Follow the direction, and see if light did indeed come from this direction}
+\note[item]{Hypothesize light came from direction r1. Follow and see what happens}
+\note[item]{Similarly for r2, r3}
+\end{frame}
+
+\begin{frame}[fragile]{A TL;DR of a path tracer}
+\begin{figure}
+\includegraphics[height=0.6\textwidth]{raytracing-light.png}
+\end{figure}
+\note[item]{Let's say our ray hits a light source}
+\note[item]{Then we know that the ray came from the light source}
+\note[item]{Set color to color of light source}
+\end{frame}
+
+\begin{frame}[fragile]{A TL;DR of a path tracer}
+\begin{figure}
+\includegraphics[height=0.6\textwidth]{raytracing-void.png}
+\end{figure}
+\note[item]{Let's say our ray hits nothing}
+\note[item]{Then we know that nothing could have produced this ray.}
+\note[item]{Set color to zero}
+\end{frame}
+
+\begin{frame}[fragile]{A TL;DR of a path tracer}
+\begin{figure}
+\includegraphics[height=0.6\textwidth]{raytracing-metal.png}
+\end{figure}
+\note[item]{Let's say our ray hit a metallic object. This is neither a light source, nor nothing}
+\note[item]{We want to find light rays, which on striking the metal, produce our black right ray}
+\note[item]{Use reflection: angle of incidence equals angle of reflection}
+\note[item]{Perform math, find light ray that lead to black right ray}
+\note[item]{candidate blue ray is shown}
+\note[item]{recurse}
+\end{frame}
+
+\begin{frame}[fragile]{A TL;DR of a path tracer}
+\begin{figure}
+\includegraphics[height=0.6\textwidth]{raytracing-glass.png}
+\end{figure}
+\note[item]{Let's say our ray hit a glass object. This is different from all the previous cases}
+\note[item]{Here, refraction comes into play}
+\note[item]{Perform math, find light ray that lead to black right ray}
+\note[item]{candidate blue ray is shown}
+\note[item]{recurse}
+\end{frame}
+
+\begin{frame}[fragile]{A TL;DR of a path tracer}
+\begin{figure}
+\includegraphics[height=0.6\textwidth]{raytracing-many-recursions.png}
+\end{figure}
+\begin{itemize}
+\item When to end recursion?
+\item Choose to end recursion \emph{randomly} after some large number of rounds
+\item ``Russian Roulette''
+\end{itemize}
+\note[item]{Consider a difficult scene like this one, where light can only enter from the top}
+\note[item]{Light may need to bounce many times before it enters the eye}
+\note[item]{How many bounces do we consider?}
+\note[item]{Make longer bounces more unlikely}
+\note[item]{Setup a russian roulette system, where the longer a ray has bounced, the more likely it is to die (stop recursing)}
+\note[item]{increase number of bullets in the gun as number of bounces increase}
+\end{frame}
+
+\begin{frame}[fragile]{A TL;DR of a path tracer}
+\begin{itemize}
+\item Recursive (recursively send more light rays)
+\item Branching (hit an object? is it a light source? what material?)
+\item Number crunching (reflection, refraction, sphere-ray-intersection)
+\item Randomness (when do we stop a light ray)
+\end{itemize}
+\end{frame}
+
 \begin{frame}[fragile]{What is smallpt anyway?}
 % \begin{adjustwidth}{-5em}{-5em}
 \begin{minted}{cpp}
@@ -134,8 +215,9 @@ Sphere spheres[] = {//Scene: radius, position, emission, color, material
 % \end{adjustwidth}
 \note[item]{\textbf{S}}
 \note[item]{Has geometric primitives: vectors, spheres, materials}
-\note[item]{Entirely number-based, no real data structure}
+\note[item]{Entirely numeric-based, no real ``data structures'' to speak of}
 \end{frame}
+
 
 
 \begin{frame}[fragile]{What is smallpt anyway?}
@@ -208,6 +290,7 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 } 
 \end{minted}
 \note[item]{\textbf{S}}
+\note[item]{radiance is the function that performs this path tracing}
 \note[item]{Recursively calls itself a bunch of times}
 \end{frame}
 
@@ -314,7 +397,7 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
 } 
 \end{minted}
 \note[item]{\textbf{S}}
-\note[item]{We use erand48 for randomness}
+\note[item]{uses the function erand48 for randomness}
 \end{frame}
 
 
@@ -397,7 +480,7 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
 \end{minted}
 
 \note[item]{\textbf{S}}
-\note[item]{the original source has the same computation in haskell}
+\note[item]{The same computation, this time in haskell}
 % \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
 \end{frame}
 
@@ -422,8 +505,9 @@ data Sphere = Sphere Double Vec Vec Vec Refl
 \end{minted}
 
 \note[item]{\textbf{S}}
-\note[item]{We implement the same data structures in Haskell}
-\note[item]{Note that \texttt{Ray, Sphere} not having unpack}
+\note[item]{We implement the same geometric data structures in Haskell}
+\note[item]{Code here has an inconsistency}
+\note[item]{while Vec has unpack, \texttt{Ray, Sphere} not having unpack}
 \end{frame}
 
 \begin{frame}[fragile]{Initial Haskell Code: scene data}
@@ -549,9 +633,10 @@ smallpt w h nsamps = do
 \end{minted}
 
 \note[item]{\textbf{S}}
-\note[item]{Uses mutability}
-\note[item]{Performs number crunchy loops}
-\note[item]{Finally, writes results out}
+\note[item]{Use mutability to store the pixels of the image in c}
+\note[item]{Loops over all pixels in an image and shoots rays}
+\note[item]{Shoots samps number of rays per pixel and adds up the results}
+\note[item]{Finally, writes resulting color out by mutating the array c}
 \end{frame}
 
 \begin{frame}[fragile]{Initial Haskell Code: File I/O  ($1\times$)}
@@ -571,8 +656,8 @@ foreign import ccall unsafe "erand48"
   erand48 :: Ptr CUShort -> IO Double
 \end{minted}
 \note[item]{\textbf{S}}
-\note[item]{We use the RNG to decide randomly in which direction to send rays}
-\note[item]{Point out the use of foreign CCall.}
+\note[item]{As mentioned previously, we use the RNG to decide randomly in which direction to send rays}
+\note[item]{erand48 is imported as a foreign ccall for parity with the C code}
 \end{frame}
 
 \begin{frame}[fragile]{Performance: Initial Haskell Code}
@@ -594,8 +679,10 @@ foreign import ccall unsafe "erand48"
 \end{itemize}
 \note[item]{\textbf{S}}
 \note[item]{The very first thing to do is to let the compiler actually optimize.}
-\note[item]{Compiler can't know how exported functions are used.}
-\note[item]{Export lists not just about encapsulation.}
+\note[item]{If a function is public, then compiler doesn't know all call sites}
+\note[item]{Export only the one function that's called from the outside: main}
+\note[item]{Allows compiler to know that other functions in module are not called from outside}
+\note[item]{compiler has "perfect knowledge" about these functions now}
 \end{frame}
 
 \begin{frame}[fragile]{Performance: Restrict export list to \texttt{main}}
