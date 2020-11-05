@@ -592,6 +592,52 @@ foreign import ccall unsafe "erand48"
 
 
 \begin{frame}[fragile]{Mark entries of Ray and Sphere as UNPACK and Strict ($1.07\times$)}
+\begin{minted}{hs}
+data Ray = Ray Vec Vec 
+\end{minted}
+
+\begin{figure}
+\includegraphics[height=0.4\textheight]{./ray-thunk.png}
+\end{figure}
+
+\begin{itemize}
+\item By default, all fields are \emph{thunks} to rest of computation
+\item Pure, allow equational reasoning.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Mark entries of Ray and Sphere as UNPACK and Strict ($1.07\times$)}
+\begin{minted}{hs}
+data Ray = Ray !Vec !Vec
+\end{minted}
+
+\begin{figure}
+\includegraphics[height=0.4\textheight]{./ray-strict.png}
+\end{figure}
+
+\begin{itemize}
+\item When strict, elements are \emph{pointers} to known structures
+\item pointers enable sharing!
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]{Mark entries of Ray and Sphere as UNPACK and Strict ($1.07\times$)}
+\begin{minted}{hs}
+data Ray = Ray {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec 
+\end{minted}
+
+\begin{figure}
+\includegraphics[height=0.4\textheight]{./ray-unpack.png}
+\end{figure}
+
+\begin{itemize}
+\item When unpacked, elements are \emph{members} of the parent.
+\item Larger, but eliminate pointer chasing.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Mark entries of Ray and Sphere as UNPACK and Strict ($1.07\times$)}
 % 1ad231a927f1a0582aee3f161e91372f7124d0c7
 
 \begin{minted}[fontsize=\small]{diff}
@@ -600,7 +646,7 @@ data Vec = Vec {-# UNPACK #-} !Double
                {-# UNPACK #-} !Double
 
 -data Ray = Ray Vec Vec -- origin, direction
-+data Ray = Ray {-# UNPACK #-} !Vec {-# UNPACK #-} !Vec -- origin, direction
++data Ray = Ray !Vec !Vec -- origin, direction
 
  data Refl = DIFF | SPEC | REFR -- material types, used in radiance
 
@@ -1114,7 +1160,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \end{frame}
 
 \begin{frame}[fragile]{Avoid CPU ieee754 slow paths}
-\begin{minted}{hs}
+\begin{minted}{diff}
  intersect :: Ray -> Sphere -> Double
  intersect (Ray o d) (Sphere r p _e _c _refl) =
    if det<0
