@@ -1346,12 +1346,13 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \begin{itemize}
 \item The unrolling in 'intersects' is ugly.
 \item (We feel) the maintainability of this code hasn’t been significantly harmed.
-\item We're faster than clang++ and within 6\% of g++
+\item We're faster than \texttt{clang++} and \texttt{g++}
 \item Haven't exhausted the optimization opportunities.
-\item GHC could learn to do several of these optimizations for us.
+\item \texttt{GHC} could learn to do several of these optimizations for us.
 \item Others are just good Haskell style. 
 \item Clean Haskell is often performant Haskell.
-\item Repository stepping through each optimization is available at ...
+\item Repository stepping through each optimization is available at \href{https://github.com/bollu/smallpt-opt}{\texttt{github.com/bollu/smallpt-opt}}
+\item Slides at \href{https://github.com/bollu/slides-haskell-exchange-2020-smallpt}{github.com/bollu/slides-haskell-exchange-2020-smallpt}
 \end{itemize}
 %\item \href{https://docs.google.com/spreadsheets/d/1YhZlDRGvnCtN8UQf_0ItmgRWI9MhL21HDTlBEKqgWHc/edit#gid=0}{Raw Google Sheet of our transformations}
 %\item \href{https://github.com/bollu/smallpths}{\texttt{github.com/bollu/smallpt-opt}}
@@ -1362,6 +1363,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \begin{frame}[fragile]{Raw data}
 \begin{itemize}
 \item All test were on an otherwise idle \texttt{Equinix Metal c3.small.x86} (\texttt{Intel Xeon E-2278G} with \texttt{32GiB} RAM, Ubuntu \texttt{20.04}).
+      Averages over ten runs were reported. Performance numbers are stable.
 \end{itemize}
 
 {\tiny
@@ -1389,6 +1391,11 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \hline
 \end{tabular}
 }
+\begin{itemize}
+\item We're likely faster than \texttt{C++} because we can see \texttt{erand48} that the C++ compiler cannot.
+\item We're also likely faster than \texttt{C++} because we stream the pixel outputs that's written to the file.
+\item \texttt{C++} keeps all of the pixel data resident in-memory.
+\end{itemize}
 \end{frame}
 
 \end{document}
