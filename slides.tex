@@ -575,8 +575,12 @@ foreign import ccall unsafe "erand48"
 \note[item]{Point out the use of foreign CCall.}
 \end{frame}
 
+\begin{frame}[fragile]{Performance: Initial Haskell Code}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-0e242-gen.png}
+\end{frame}
 
-\begin{frame}[fragile]{Restrict export list to `main` ($1.13\times$)}
+
+\begin{frame}[fragile]{Restrict export list to \texttt{main} ($1.13\times$)}
 % 4678326cbb78368977f901ed32e0bdb55b8be6c7
 \begin{minted}{diff}
 -module Main where
@@ -592,6 +596,10 @@ foreign import ccall unsafe "erand48"
 \note[item]{The very first thing to do is to let the compiler actually optimize.}
 \note[item]{Compiler can't know how exported functions are used.}
 \note[item]{Export lists not just about encapsulation.}
+\end{frame}
+
+\begin{frame}[fragile]{Performance: Restrict export list to \texttt{main}}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-76a82-gen.png}
 \end{frame}
 
 
@@ -678,6 +686,10 @@ struct RayUnpack { double xv, yv, int zv;
 \note[item]{Don't unpack Ray, because each Vec undergoes a lot of computation.}
 \end{frame}
 
+\begin{frame}[fragile]{Performance: Mark entries of Ray and Sphere as UNPACK and Strict}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-f3819-gen.png}
+\end{frame}
+
 \begin{frame}[fragile]{Use a pattern synonym to unpack Refl in Sphere ($1.07\times$)}
 % e1819a6
 
@@ -714,7 +726,12 @@ struct RayUnpack { double xv, yv, int zv;
 
 \end{frame}
 
-\begin{frame}[fragile]{Change from \texttt{maximum} on a list to \texttt{max} ($1.08\times$)}
+
+\begin{frame}[fragile]{Performance: Use a pattern synonym to unpack Refl in Sphere}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-fc364-gen.png}
+\end{frame}
+
+\begin{frame}[fragile]{ Change from \texttt{maximum} on a list to \texttt{max} ($1.08\times$)}
 % e77b26f
 \begin{minted}{diff}
 -maxv (Vec a b c) = maximum [a,b,c]
@@ -743,7 +760,11 @@ struct RayUnpack { double xv, yv, int zv;
 \note[item]{Doesn't really help much in this case}
 \end{frame}
 
-\begin{frame}[fragile]{Convert \texttt{erand48} to pure Haskell ($1.09\times$)}
+\begin{frame}[fragile]{Performance: Change from \texttt{maximum} on a list to \texttt{max}}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-66c39-gen.png}
+\end{frame}
+
+\begin{frame}[fragile]{ Convert \texttt{erand48} to pure Haskell ($1.09\times$)}
 % 48aeb46
 \begin{minted}[fontsize=\small]{diff}
 -foreign import ccall unsafe "erand48"
@@ -778,6 +799,11 @@ struct RayUnpack { double xv, yv, int zv;
 \note[item]{Often considering your Haskell code's performance is a better option and easier than reimplementing something in C.}
 \note[item]{As is the way with optimizations, this is not universally true.}
 \end{frame}
+
+\begin{frame}[fragile]{Performance:Convert \texttt{erand48} to pure Haskell}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-5704a-gen.png}
+\end{frame}
+
 
 \begin{frame}[fragile]{Remove mutability: \texttt{Erand48} Monad}
 
@@ -818,6 +844,7 @@ struct RayUnpack { double xv, yv, int zv;
 
 \end{frame}
 
+
 \begin{frame}[fragile]{Removing mutation: eliminate \texttt{IORef} and \texttt{Data.Vector.Mutable}}
 \begin{minted}[fontsize=\small]{diff}
 -  c <- VM.replicate (w * h) 0
@@ -849,6 +876,12 @@ struct RayUnpack { double xv, yv, int zv;
 
 \note[item]{\textbf{D}}
 
+\end{frame}
+
+
+
+\begin{frame}[fragile]{Performance: Remove mutability}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-eb9a3-gen.png}
 \end{frame}
 
 
@@ -889,6 +922,11 @@ smallpt w h nsamps = do
 \note[item]{We get a speedup here but it can also regress performance. Some of these bangs are regressions that are hidden.}
 \note[iem]{Don't senselessly bang everything in sight. }
 
+\end{frame}
+
+
+\begin{frame}[fragile]{Performance: Set \textbf{everything} in \texttt{smallpt} to be strict}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-5caf8-gen.png}
 \end{frame}
 
 \begin{frame}[fragile]{Why strictness may be bad}
@@ -932,7 +970,8 @@ let foo'Opt = \y -> y  -- ERROR! forcing foo'=foo'Opt should give "ERR"
 \end{frame}
 
 
-\begin{frame}[fragile]{Reduce to only useful strictnesses in \texttt{smallpt}($1.17\times$)}
+
+\begin{frame}[fragile]{ Reduce to only useful strictnesses in \texttt{smallpt}($1.17\times$)}
 \begin{minted}{diff}
 -  let !samps = nsamps `div` 4
 -      !org = Vec 50 52 295.6
@@ -966,6 +1005,10 @@ let foo'Opt = \y -> y  -- ERROR! forcing foo'=foo'Opt should give "ERR"
 \note[item]{A little thinking about how the variables are used or looking at core allows us to select which ones we bang selectively.}
 \end{frame}
 
+\begin{frame}[fragile]{Reduce to only useful strictnesses in \texttt{smallpt}}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-361eb-gen.png}
+\end{frame}
+
 \begin{frame}[fragile]{Use strictness strategically in entire project}
 \begin{minted}[fontsize=\small]{diff}
 ...
@@ -993,6 +1036,10 @@ let foo'Opt = \y -> y  -- ERROR! forcing foo'=foo'Opt should give "ERR"
 \note[item]{Only take away the compiler's liberties when it's using them poorly.}
 \note[item]{Becomes intuitive.}
 
+\end{frame}
+
+\begin{frame}[fragile]{Use strictness strategically in entire project}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-7911c-gen.png}
 \end{frame}
 
 
@@ -1038,6 +1085,10 @@ intersect at infinity, Double already actually covers the structure at play}
 \note[item]{This also reduces allocation.}
 \end{frame}
 
+\begin{frame}[fragile]{Performance: Remove \texttt{Maybe} from \texttt{intersect(s)} ($1.32\times$)}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-149bc-gen.png}
+\end{frame}
+
 
 \begin{frame}[fragile]{Hand unroll the fold in intersects ($1.35\times$)}
 % 4f28fcc
@@ -1073,6 +1124,10 @@ intersects :: Ray -> (Double, Sphere)
 ...
 \end{minted}
 
+\end{frame}
+
+\begin{frame}[fragile]{Performance: Hand unroll the fold in intersects ($1.35\times$)}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-80931-gen.png}
 \end{frame}
 
 \begin{frame}[fragile]{Custom datatype for \texttt{intersects} parameter passing}
@@ -1114,6 +1169,10 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 
 \end{frame}
 
+\begin{frame}[fragile]{Custom datatype for \texttt{intersects} parameter passing}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-07d68-gen.png}
+\end{frame}
+
 \begin{frame}[fragile]{Optimize file writing}
 \begin{minted}{diff}
    build-depends:
@@ -1144,6 +1203,11 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \end{frame}
 
 
+\begin{frame}[fragile]{Performance: Optimize file writing}
+\includegraphics[height=0.6\textwidth]{perfdata-upto-4e141-gen.png}
+\end{frame}
+
+
 \begin{frame}[fragile]{Use \texttt{LLVM} backend ($1.87\times$)}
 % 578b83c0afb6a8c7944529e2607ef9dbd5f2ab22
 \begin{minted}{diff}
@@ -1164,7 +1228,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \begin{frame}[fragile]{The view from the mountaintop}
 
 \begin{center}
-\includegraphics[height=0.6\textwidth]{./perfdata-gen.png}
+\includegraphics[height=0.7\textwidth]{perfdata-upto-16c56-gen.png}
 \end{center}
 \note[item]{\textbf{D}}
 \end{frame}
@@ -1212,6 +1276,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 
 
 \begin{frame}[fragile]{A second view from the mountaintop}
+\includegraphics[height=0.7\textwidth]{perfdata-upto-9ee06-gen.png}
 \end{frame}
 
 
