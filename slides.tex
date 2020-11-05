@@ -1006,9 +1006,9 @@ smallpt w h nsamps = do
 \end{frame}
 
 
-\begin{frame}[fragile]{Performance: Set \textbf{everything} in \texttt{smallpt} to be strict ($1.15\times$)}
-\includegraphics[height=0.6\textwidth]{perfdata-upto-5caf8-gen.png}
-\end{frame}
+% \begin{frame}[fragile]{Performance: Set \textbf{everything} in \texttt{smallpt} to be strict ($1.15\times$)}
+% \includegraphics[height=0.6\textwidth]{perfdata-upto-5caf8-gen.png}
+% \end{frame}
 
 \begin{frame}[fragile]{Why strictness may be bad}
 \begin{minted}[fontsize=\small]{hs}
@@ -1023,23 +1023,6 @@ let foo' = let !x = error "ERR" in \y -> y
 \begin{minted}[fontsize=\small]{hs}
 let foo'Opt = \y -> y  -- ERROR! forcing foo'=foo'Opt should give "ERR"
 \end{minted}
-% \pause
-% \begin{minted}[fontsize=\small]{hs}
-% let tuple = (42, error "urk")
-% let bar = let (x, y) = tuple in \z -> x + z
-% \end{minted}
-% \pause
-% \begin{minted}[fontsize=\small]{hs}
-% let barOpt = \z -> 42 + z
-% \end{minted}
-% \pause
-% \begin{minted}[fontsize=\small]{hs}
-% let bar' = let (x, !y) = tuple in \z -> x + z
-% \end{minted}
-% \pause
-% \begin{minted}[fontsize=\small]{hs}
-% let bar'Opt =  \z -> 42 + z  --  ERROR: forcing bar' should give "urk"
-% \end{minted}
 \note[item]{\textbf{S}}
 \note[item]{Consider the function foo and fooOpt. These are equivalent}
 \note[item]{The fact that x is not used allows us to eliminiate computing x}
