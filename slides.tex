@@ -1313,6 +1313,16 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \end{frame}
 
 \begin{frame}[fragile]{Avoid CPU \texttt{ieee754} slow paths $(2.04\times \mapsto 2.12\times)$}
+\textbf{C source:}
+\begin{minted}{cpp}
+inline bool intersect(...) {
+                                        ...   inf=t=1e20;
+  ...                                                                   
+  return t<inf;
+}
+\end{minted}
+
+\textbf{Improvement:}
 \begin{minted}{diff}
  intersect :: Ray -> Sphere -> Double
  intersect (Ray o d) (Sphere r p _e _c _refl) =
@@ -1341,11 +1351,42 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 
 
 \begin{frame}[fragile]{Fix differences with C++ version $( 2.12\times \mapsto 2.32\times)$}
+
+\begin{minted}{text}
+10x10 image size, at commit  16c5641: Use LLVM backend.
+102bfd2e76bae47138a8289075c1e108e1252c0e  clang++.ppm
+9241d42eb889677e08a698489047875c50e32e6f  g++.ppm
+44b0a76616fb9f65c2307e4a4d8e6644ebd11089  ghc.ppm
+\end{minted}
+\pause
+
+\textbf{Subtle mutation:}
+\begin{minted}{cpp}
+if (++depth>5)
+...
+return ... + (depth>2 ? ... : ...) // depth is after depth++
+\end{minted}
+\pause
+\textbf{Fix:}
 \begin{minted}{diff}
+let !depth' = depth + 1 
+    ...
+in
+...
 -                  if depth>2
 +                  if depth'>2 -- depth' = depth + 1
 ...
 \end{minted}
+\pause
+\textbf{After}:
+\begin{minted}{text}
+10x10 image size, at commit  9ee060dc: Fix differences with C++ version
+102bfd2e76bae47138a8289075c1e108e1252c0e  clang++.ppm
+9241d42eb889677e08a698489047875c50e32e6f  g++.ppm
+102bfd2e76bae47138a8289075c1e108e1252c0e  ghc.ppm
+\end{minted}
+
+
 \note[item]{\textbf{S}}
 \note[item]{Since the sha1 of the output didn't match the C++ version we started investigating.}
 \note[item]{clang++, g++ actually produce different sha1s}
