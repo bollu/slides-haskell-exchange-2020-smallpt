@@ -974,34 +974,28 @@ struct RayUnpack { double xv, yv, int zv;
 
 \begin{frame}[fragile]{Set \textbf{everything} in \texttt{smallpt} to be strict ($1.15\times$)}
 % e62177b
-\begin{minted}[fontsize=\small]{diff}
+\begin{minted}[fontsize=\small]{hs}
 smallpt :: Int -> Int -> Int -> IO ()
 smallpt w h nsamps = do
--  let samps = nsamps `div` 4
--      org = Vec 50 52 295.6
--      dir = norm $ Vec 0 (-0.042612) (-1)
--      cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
--      cy = norm (cx `cross` dir) `mulvs` 0.5135
-+  let !samps = nsamps `div` 4
-+      !org = Vec 50 52 295.6
-+      !dir = norm $ Vec 0 (-0.042612) (-1)
-+      !cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
-+      !cy = norm (cx `cross` dir) `mulvs` 0.5135
-...
--  r1 <- (2*) `fmap` erand48 xi
--  let dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
--  r2 <- (2*) `fmap` erand48 xi
--  let dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
--      d = ...
--  rad <- radiance (Ray (org`addv`(d`mulvs`140)) (norm d)) 0 xi
-+  !r1 <- (2*) `fmap` erand48 xi
-+  let !dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
-+  !r2 <- (2*) `fmap` erand48 xi
-+  let !dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
-+      !d = ...
-...
-+              pure $! r + rad .* recip (fromIntegral samps)
-+            pure $! ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25
+  let !samps = nsamps `div` 4
+      !org = Vec 50 52 295.6
+      !dir = norm $ Vec 0 (-0.042612) (-1)
+      !cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
+      !cy = norm (cx `cross` dir) .* 0.5135
+      !img = (`concatMap` [(h-1),(h-2)..0]) $ \y -> runWithErand48 y do
+        for [0..w-1] \x -> do
+          (\pf -> foldlM pf 0 [(sy, sx) | sy <- [0,1], sx <- [0,1]]) \ci (sy, sx) -> do
+            !(Vec rr rg rb) <- (\f -> foldlM f 0 [0..samps-1]) \ !r _s -> do
+              !r1 <- (2*) <$> erand48
+              let !dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
+              !r2 <- (2*) <$> erand48
+              let !dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
+                  !d = (cx .* (((sx + 0.5 + dx)/2 + fromIntegral x)/fromIntegral w - 0.5)) +
+                       (cy .* (((sy + 0.5 + dy)/2 + fromIntegral y)/fromIntegral h - 0.5)) + 
+                        dir
+              !rad <- radiance (Ray (org+d.*140) (norm d)) 0
+              pure $! r + rad .* recip (fromIntegral samps)
+            pure $! ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25
 \end{minted}
 
 \note[item]{\textbf{D}}
@@ -1059,31 +1053,29 @@ let foo'Opt = \y -> y  -- ERROR! forcing foo'=foo'Opt should give "ERR"
 
 
 \begin{frame}[fragile]{ Reduce to only useful strictnesses in \texttt{smallpt} ($1.15\times$)}
-\begin{minted}{diff}
--  let !samps = nsamps `div` 4
--      !org = Vec 50 52 295.6
--      !dir = norm $ Vec 0 (-0.042612) (-1)
--      !cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
--      !cy = norm (cx `cross` dir) .* 0.5135
-+  let samps = nsamps `div` 4
-+      org = Vec 50 52 295.6
-+      dir = norm $ Vec 0 (-0.042612) (-1)
-+      cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
-+      cy = norm (cx `cross` dir) .* 0.5135
-...
--              !r1 <- (2*) <$> erand48
-+              r1 <- (2*) <$> erand48
-...
--              !r2 <- (2*) <$> erand48
-+              r2 <- (2*) <$> erand48
-...
--              !rad <- radiance (Ray (org+d.*140) (norm d)) 0
-+              rad <- radiance (Ray (org+d.*140) (norm d)) 0
-...
--              pure $! r + rad .* recip (fromIntegral samps)
--            pure $! ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25
-+              pure (r + rad .* recip (fromIntegral samps))
-+            pure (ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25)
+\begin{minted}[fontsize=\small]{hs}
+smallpt :: Int -> Int -> Int -> IO ()
+smallpt w h nsamps = do
+  let samps = nsamps `div` 4 -- NO LONGER STRICT
+      org = Vec 50 52 295.6 -- NO LONGER STRICT
+      dir = norm $ Vec 0 (-0.042612) (-1)  -- NO LONGER STRICT
+      cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
+      cy = norm (cx `cross` dir) .* 0.5135
+      img = (`concatMap` [(h-1),(h-2)..0]) $ \y -> runWithErand48 y do
+        for [0..w-1] \x -> do
+          (\pf -> foldlM pf 0 [(sy, sx) | sy <- [0,1], sx <- [0,1]]) \ci (sy, sx) -> do
+            Vec rr rg rb <- (\f -> foldlM f 0 [0..samps-1]) \ !r _s -> do
+              r1 <- (2*) <$> erand48
+              let !dx = if r1<1 then sqrt r1-1 else 1-sqrt(2-r1)
+              r2 <- (2*) <$> erand48
+              -- | STRICT
+              let !dy = if r2<1 then sqrt r2-1 else 1-sqrt(2-r2)
+                  !d = (cx .* (((sx + 0.5 + dx)/2 + fromIntegral x)/fromIntegral w - 0.5)) +
+                       (cy .* (((sy + 0.5 + dy)/2 + fromIntegral y)/fromIntegral h - 0.5)) +
+                        dir
+              rad <- radiance (Ray (org+d.*140) (norm d)) 0
+              pure (r + rad .* recip (fromIntegral samps))
+            pure (ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25)
 \end{minted}
 
 \note[item]{\textbf{D}}
