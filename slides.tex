@@ -671,10 +671,11 @@ struct RayUnpack { double xv, yv, int zv;
 
 \note[item]{\textbf{D}}
 \note[item]{Strictness in the arguments means that they're evaluated when instantiated, not when demanded. }
-\note[item]{Unpacking removes indirection from doing a memory lookup for components.}
+\note[item]{Where as Unpacking removes indirection from doing a memory lookup for components.}
 \note[item]{Means we have to copy everything into the data structure that it is unpacked into.}
 \note[item]{We don't unpack ray (Lots of calculations on its components, want those to fuse)}
-\note[item]{Unpack Sphere - its static}
+\note[item]{Unpack Sphere - its static from compile time}
+\note[item]{Don't unpack Ray, because each Vec undergoes a lot of computation.}
 \end{frame}
 
 \begin{frame}[fragile]{Use a pattern synonym to unpack Refl in Sphere ($1.07\times$)}
@@ -705,6 +706,7 @@ struct RayUnpack { double xv, yv, int zv;
 
 
 \note[item]{\textbf{D}}
+\note[item]{Was unable to unpack Refl}
 \note[item]{UnboxedSums are recent}
 \note[item]{UnboxedSums are very unpleasant}
 \note[item]{We're using an older trick to fake the unboxing here instead.}
@@ -735,9 +737,10 @@ struct RayUnpack { double xv, yv, int zv;
 \end{minted}
 
 \note[item]{\textbf{D}}
-\note[item]{finicky optimization.}
-\note[item]{Minimal usage of this function.}
+\note[item]{Prebuild comparison}
+\note[item]{Don't go via list}
 \note[item]{GHC does not evaluate at compile time, only has RULES}
+\note[item]{Doesn't really help much in this case}
 \end{frame}
 
 \begin{frame}[fragile]{Convert \texttt{erand48} to pure Haskell ($1.09\times$)}
@@ -958,10 +961,8 @@ let foo'Opt = \y -> y  -- ERROR! forcing foo'=foo'Opt should give "ERR"
 \end{minted}
 
 \note[item]{\textbf{D}}
-\note[item]{Bangs force evaluation.}
-\note[item]{The computation might diverge.}
 \note[item]{Thus the compiler can no longer move the computation around or simplify it.}
-\note[item]{Useless work.}
+\note[item]{Force useless work.}
 \note[item]{A little thinking about how the variables are used or looking at core allows us to select which ones we bang selectively.}
 \end{frame}
 
@@ -1223,6 +1224,7 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
 \item GHC could learn to do several of these optimizations for us.
 \item Others are just good Haskell style. 
 \item Clean Haskell is often performant Haskell.
+\iten Repository stepping through each optimization is available at ...
 \end{itemize}
 %\item \href{https://docs.google.com/spreadsheets/d/1YhZlDRGvnCtN8UQf_0ItmgRWI9MhL21HDTlBEKqgWHc/edit#gid=0}{Raw Google Sheet of our transformations}
 %\item \href{https://github.com/bollu/smallpths}{\texttt{github.com/bollu/smallpt-opt}}
