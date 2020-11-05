@@ -3,6 +3,8 @@
 \usepackage{pgfpages}
 
 % ENABLE THIS FOR NOTES
+%\setbeameroption{hide notes} % Only slides
+%\setbeameroption{show only notes} % Only notes
 \setbeameroption{show notes on second screen=right} % Both
 
 \usepackage[sc,osf]{mathpazo}   % With old-style figures and real smallcaps.
@@ -101,9 +103,9 @@
 \end{itemize}
 \end{column}
 \end{columns}
-\end{frame}
 
 \note{Note for first slide: what is smallpt anyway?}
+\end{frame}
 
 \begin{frame}[fragile]{What is smallpt anyway?}
 % \begin{adjustwidth}{-5em}{-5em}
@@ -161,9 +163,10 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
                                                                          
 } 
 \end{minted}
-\end{frame}
 
 \note{Say that the core function is radiance}
+\end{frame}
+
 
 \begin{frame}[fragile]{What is smallpt anyway?}
 \footnotesize
@@ -196,11 +199,10 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
     radiance                      radiance
 } 
 \end{minted}
+\note{Say that it's recursive}
 \end{frame}
 
 \begin{frame}[fragile]{What is smallpt anyway?}
-
-\note{Say that it's recursive}
 \footnotesize
 \begin{minted}{cpp}
 Vec radiance(const Ray &r, int depth, unsigned short *Xi){ 
@@ -231,9 +233,9 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
     radiance                      radiance
 } 
 \end{minted}
+\note{...with control flow}
 \end{frame}
 
-\note{...with control flow}
 
 \begin{frame}[fragile]{What is smallpt anyway?}
 \footnotesize
@@ -266,9 +268,9 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
     radiance                      radiance
 } 
 \end{minted}
+\note{and lots of arithmetic}
 \end{frame}
 
-\note{and lots of arithmetic}
 
 \begin{frame}[fragile]{What is smallpt anyway?}
 \footnotesize
@@ -301,9 +303,9 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi){
     radiance(reflRay,depth,Xi)*Re+radiance(Ray(x,tdir),depth,Xi)*Tr); 
 } 
 \end{minted}
+\note{Talk about how dense the source is to fit in 99 lines.}
 \end{frame}
 
-\note{display the whole thing}
 
 \begin{frame}[fragile]{Initial Haskell Code: \texttt{radiance} ($1\times$)}
 % 620027b45e40e5a4b18f36cabc70efe803f41a61
@@ -346,10 +348,10 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
             ...
 \end{minted}
 
+\note{show the same thing, this time in haskell}
 % \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
 \end{frame}
 
-\note{show the same thing, this time in haskell}
 
 \begin{frame}[fragile]{Initial Haskell Code: Data structures}
 \begin{minted}[fontsize=\small]{hs}
@@ -449,9 +451,9 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
             ...
 \end{minted}
 % \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
-\end{frame}
 
 \note{full code}
+\end{frame}
 
 
 
@@ -514,8 +516,6 @@ foreign import ccall unsafe "erand48"
 \item original versions must be available. \pause
 \item Make many optimizations unsound.
 \end{itemize}
-\end{frame}
-
 \note{
 The very first thing to do is to let the compiler actually optimize.  Exported
 functions could be used by something unknown to the compiler and thus their
@@ -523,6 +523,8 @@ original versions must be available. This makes many optimizations look bad or
 be unreasonable. Explicit export lists tell the compiler what you care about.
 They aren't just about encapsulation.
 }
+\end{frame}
+
 
 \begin{frame}[fragile]{Mark entries of Ray and Sphere as UNPACK and Strict ($1.07\times$)}
 % 1ad231a927f1a0582aee3f161e91372f7124d0c7
@@ -551,7 +553,6 @@ struct Ray { std::function<Vec()> v; std::function<Vec()> w; };
 struct RayUnpack { double xv, yv, int zv;
                    double xw, yw, zw; };
 \end{minted}
-\end{frame}
 
 \note{ Strict means that they're evaluated ahead of time, not lazily of course.
 This can save a bit in their evaluation cost but means we always pay it. It is
@@ -565,6 +566,7 @@ Sphere because we statically create them and while they'll also be hot in cache
 there is no benefit to taking any extra cost at all.
 }
 
+\end{frame}
 
 \begin{frame}[fragile]{Use a pattern synonym to unpack Refl in Sphere ($1.07\times$)}
 % e1819a6
@@ -592,7 +594,6 @@ there is no benefit to taking any extra cost at all.
 
  \end{minted}
 
-\end{frame}
 
 \note{
 Until the recent addition of unboxed sums in GHC there was no way to unpack a type with multiple constructors.
@@ -601,6 +602,7 @@ We're using an older trick to fake the unboxing here instead.
 In this case it isn't much of a win, but it illustrates the technique.
 }
 
+\end{frame}
 
 \begin{frame}[fragile]{Change from \texttt{maximum} on a list to \texttt{max} ($1.08\times$)}
 % e77b26f
@@ -623,29 +625,17 @@ In this case it isn't much of a win, but it illustrates the technique.
          er <- erand48 xi
 +        let !pr = maxv c
 \end{minted}
-\end{frame}
 
 \note{finicky optimization. GHC does not evaluate at compile time, making
       optimizations like these necessary}
 
+\end{frame}
 
 \begin{frame}[fragile]{Convert \texttt{erand48} to pure Haskell ($1.09\times$)}
 % 48aeb46
 \begin{minted}[fontsize=\small]{diff}
--radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
-+radiance :: Ray -> Int -> IORef Word64 -> IO Vec -- IORef with state
- radiance ray@(Ray o d) depth xi = case intersects ray of
-   ...
-   c <- VM.replicate (w * h) zerov
--  allocaArray 3 $ \xi -> -- Old RNG state
--      flip mapM_ [0..h-1] $ \y -> do
-+  xi <- newIORef 0 -- New RNG state
-+  flip mapM_ [0..h-1] $ \y -> do
-       writeXi xi y
-...
-+writeXi :: IORef Word64 -> Int -> IO ()
-+writeXi !xi !y = 
-+  let ... ; prod = ... in writeIORef xi (prod `unsafeShiftL` 32)
+-foreign import ccall unsafe "erand48"
+-  erand48 :: Ptr CUShort -> IO Double
 
 +erand48 :: IORef Word64 -> IO Double
 +erand48 !t =  do -- | Some number crunchy thing.
@@ -656,13 +646,23 @@ In this case it isn't much of a win, but it illustrates the technique.
 +  writeIORef t x'
 +  pure d
 ...
+-radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
++radiance :: Ray -> Int -> IORef Word64 -> IO Vec -- IORef with state
+ radiance ray@(Ray o d) depth xi = case intersects ray of
+   ...
+   c <- VM.replicate (w * h) zerov
+-  allocaArray 3 $ \xi -> -- Old RNG state
+-      flip mapM_ [0..h-1] $ \y -> do
++  xi <- newIORef 0 -- New RNG state
++  flip mapM_ [0..h-1] $ \y -> do
+       writeXi xi y
 \end{minted}
-\end{frame}
 
 \note{
-This function isn't used much so it doesn't really impact our performance but
-often building unnecessary data structures is detrimental.
+We're opening the black box for GHC; We no longer have to cross the Haskell <-> C
+FFI, which eliminates impedance mismatch.
 }
+\end{frame}
 
 \begin{frame}[fragile]{Remove mutability: \texttt{Erand48} Monad}
 
@@ -693,7 +693,6 @@ often building unnecessary data structures is detrimental.
 +                              then (.* rp) <$> radiance reflRay depth'
 +                              else (.* tp) <$> radiance (Ray x tdir) depth'
 \end{minted}
-\end{frame}
 
 \note{
 The entire premise of this talk is that Haskell can be as fast as C.  Further
@@ -704,6 +703,8 @@ be a win.  Often considering your Haskell code's performance is a better option
 and easier than reimplementing something in C.
 As is the way with optimizations, this is not universally true.
 }
+
+\end{frame}
 
 \begin{frame}[fragile]{Removing mutation: eliminate \texttt{IORef}}
 \begin{minted}[fontsize=\small]{diff}
@@ -732,7 +733,6 @@ As is the way with optimizations, this is not universally true.
 +            pure (ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25)
 ...
 \end{minted}
-\end{frame}
 
 
 \note{
@@ -743,6 +743,8 @@ mutability for performance but in fact one primary optimization technique
 powering modern compilers is SSA. We almost start there as a functional
 language don't break it when you don't have a good reason.
 }
+
+\end{frame}
 
 
 \begin{frame}[fragile]{Set \textbf{everything} in \texttt{smallpt} to be strict ($1.17\times$)}
@@ -776,13 +778,14 @@ smallpt w h nsamps = do
 +              pure $! r + rad .* recip (fromIntegral samps)
 +            pure $! ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25
 \end{minted}
-\end{frame}
 
 \note{
 This is not a recommendation, this is a warning.
 We get a speedup here but it can also regress performance. Some of these bangs are regressions that are hidden.
 Don't senselessly bang everything in sight.
 }
+
+\end{frame}
 
 \begin{frame}[fragile]{Why strictness may be bad}
 \begin{minted}[fontsize=\small]{hs}
@@ -841,7 +844,6 @@ let bar'Opt =  \z -> 42 + z  --  ERROR: forcing bar' should give "urk"
 +              pure (r + rad .* recip (fromIntegral samps))
 +            pure (ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25)
 \end{minted}
-\end{frame}
 
 \note{
 Bangs force evaluation.
@@ -850,6 +852,8 @@ Thus the compiler can no longer move the computation around or simplify it.
 Also if the work doesn't have to get done it still might be.
 A little thinking about how the variables are used or looking at core allows us to select which ones we bang selectively.
 }
+
+\end{frame}
 
 \begin{frame}[fragile]{Use strictness strategically in entire project}
 \begin{minted}[fontsize=\small]{diff}
@@ -871,13 +875,14 @@ A little thinking about how the variables are used or looking at core allows us 
 +    in if a>eps then Just a else if s>eps then Just s else Nothing
 ...
 \end{minted}
-\end{frame}
 
 \note{
 Sometimes (point out 'intersect') we have to rearrange the code though when we use bangs.
 Bangs tell the compiler to make more efficient code, but take away the compiler's options in how to do so. Only take away the compiler's liberties when it's using them poorly.
 After a little trial and error or reading core how to use bangs in your code will be intuitive.
 }
+
+\end{frame}
 
 
 \begin{frame}[fragile]{Remove \texttt{Maybe} from \texttt{intersect(s)} ($1.32\times$)}
@@ -913,20 +918,14 @@ intersect (Ray o d) (Sphere r p _e _c _refl) =
 +  (t,_) | t == (1/0.0) -> return zerov
 +  (t,Sphere _r p e c refl) -> do
 \end{minted}
+
+\note[item]{This is a far more performance critical version of what we saw with 'maximum' vs. 'max'.}
+\note[item]{innermost functions are of critical importance. remove Maybe which significantly reduces the boxing}
+\note[item]{Since a Ray that fails to intersect something can be said to
+intersect at infinity, Double already actually covers the structure at play}
+\note[item]{This also reduces allocation.}
 \end{frame}
 
-\note{
-    This is a far more performance critical version of what we saw with 'maximum' vs. 'max'.
-
-    Our innermost functions are of critical importance. Here we remove
-    a Maybe which significantly reduces the boxing (which could have
-    been mitigated with a StrictMaybe) and the cases.
-
-    Since a Ray that fails to intersect something can be said to
-    intersect at infinity, Double already actually covers the
-    structure at play.
-
-    This also reduces allocation.}
 
 \begin{frame}[fragile]{Hand unroll the fold in intersects ($1.35\times$)}
 % 4f28fcc
@@ -992,7 +991,6 @@ New: Reference to a guaranteed-to-be-evaluated Double and Sphere
          !n = norm $ x - p
          !nl = if dot n d < 0 then n else negate n
 \end{minted}
-\end{frame}
 
 \note{
 Still trying to focus on the performance of 'intersects' we can optimize how it passes data to itself and its caller.
@@ -1002,6 +1000,8 @@ An unboxed tuple sadly forces copying because of its unpacked nature. Sphere is 
 What we need is a strict tuple, and we create one for just this usage.
 This exists in libraries of course, but we wanted to illustrate it.
 }
+
+\end{frame}
 
 \begin{frame}[fragile]{Optimize file writing}
 \begin{minted}{diff}
@@ -1025,13 +1025,14 @@ This exists in libraries of course, but we wanted to illustrate it.
 +          BB.intDec 255 <> BB.char8 '\n' <>
 +          (mconcat $ fmap (\(Vec r g b) -> toInt r <> toInt g <> toInt b) img)
 \end{minted}
-\end{frame}
 
 \note{
 We're getting quite a bit faster now, but there's still some small pieces of low lying fruit.
 Strings are fairly inefficient and the conversion functions to them we use aren't particularly efficient.
 'bytestring' has some efficient writing code, so we just convert to that for a modest gain. 
 }
+
+\end{frame}
 
 
 \begin{frame}[fragile]{Use \texttt{LLVM} backend ($1.87\times$)}
@@ -1040,7 +1041,6 @@ Strings are fairly inefficient and the conversion functions to them we use aren'
 +package smallpt-opt 
 +  ghc-options: -fllvm
 \end{minted}
-\end{frame}
 
 \note{
 Finally, this particular code is quite numeric heavy.
@@ -1049,6 +1049,8 @@ LLVM has an extensive library of laws to optimize low level numeric ops.
 LLVM is too low-level to understand haskell as haskell. It makes decisions with the tacit assumption that the assembly came from a C-like language, which is often to the detriment of a Haskell-like language.
 In this case, as the code is “fortran-like”, LLVM wins.
 }
+
+\end{frame}
 
 \begin{frame}[fragile]{The view from the mountaintop}
 
@@ -1092,7 +1094,6 @@ In this case, as the code is “fortran-like”, LLVM wins.
 \end{itemize}
 %\item \href{https://docs.google.com/spreadsheets/d/1YhZlDRGvnCtN8UQf_0ItmgRWI9MhL21HDTlBEKqgWHc/edit#gid=0}{Raw Google Sheet of our transformations}
 %\item \href{https://github.com/bollu/smallpths}{\texttt{github.com/bollu/smallpt-opt}}
-\end{frame}
 
 \note{
 The unrolling in 'intersects' is ugly but other than that optimization it is our opinion that the maintainability of this code hasn’t been significantly harmed by improving its performance.
@@ -1102,4 +1103,6 @@ I believe GHC could learn to do several of these optimizations for us.
 Many of the others are just good Haskell style.
 Clean Haskell is often performant Haskell.
 }
+
+\end{frame}
 \end{document}
