@@ -92,12 +92,12 @@
 \end{column}
 \begin{column}{0.48\textwidth}
 \begin{itemize}
-\item 99 LoC C++ raytracer.
+\item 99 LoC \texttt{C++}: \textbf{small}  \textbf{p}ath \textbf{t}racer.
 \item Perfect for an optimization case study.
-\item Ported to many languages, including Haskell! (Thanks to Vo Minh Thu(\texttt{noteed})).
+\item Ported to many languages, including Haskell! (Thanks to Vo Minh Thu/\texttt{noteed}).
 \item Start from \texttt{noteed}'s original source; SHA the output image for baseline,
       keep optimizing.
-\item Plan: Quick walk through Haskell code, end up at C++ (\texttt{clang++}) performance.
+\item Plan: Quick walk through Haskell code, end up at \texttt{C++} (\texttt{clang++}) performance.
 \end{itemize}
 \end{column}
 \end{columns}
@@ -342,13 +342,71 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
                                                 
             if 
               then do
-                rad <- radiance reflRay depth' xi
+                rad <- radiance
+            ...
 \end{minted}
 
 % \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
 \end{frame}
 
 \note{show the same thing, this time in haskell}
+
+\begin{frame}[fragile]{Initial Haskell Code: Data structures}
+\begin{minted}[fontsize=\small]{hs}
+data Vec = Vec {-# UNPACK #-} !Double {-# UNPACK #-} !Double {-# UNPACK #-} !Double
+
+cross :: Vec -> Vec -> Vec
+(.*) :: Vec -> Double -> Vec
+infixl 7 .*
+len :: Vec -> Double
+norm :: Vec -> Vec
+norm v = v .* recip (len v)
+dot :: Vec -> Vec -> Double
+maxv :: Vec -> Double
+data Ray = Ray Vec Vec -- origin, direction
+data Refl = DIFF | SPEC | REFR -- material types, used in radiance
+
+-- | radius, position, emission, color, reflection
+data Sphere = Sphere Double Vec Vec Vec Refl
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Initial Haskell Code: scene data}
+\begin{minted}[fontsize=\small]{hs}
+spheres :: [Sphere]
+spheres =
+  [ Sphere 1e5  (Vec (1e5+1) 40.8 81.6)  0 (Vec 0.75 0.25 0.25) DIFF --Left
+  , Sphere 1e5  (Vec (99-1e5) 40.8 81.6) 0 (Vec 0.25 0.25 0.75) DIFF --Rght
+  , Sphere 1e5  (Vec 50 40.8 1e5)        0 0.75  DIFF --Back
+  , Sphere 1e5  (Vec 50 40.8 (170-1e5))  0 0     DIFF --Frnt
+  , Sphere 1e5  (Vec 50 1e5 81.6)        0 0.75  DIFF --Botm
+  , Sphere 1e5  (Vec 50 (81.6-1e5) 81.6) 0 0.75  DIFF --Top
+  , Sphere 16.5 (Vec 27 16.5 47)         0 0.999 SPEC --Mirr
+  , Sphere 16.5 (Vec 73 16.5 78)         0 0.999 REFR --Glas
+  , Sphere 600  (Vec 50 681.33 81.6)    12 0     DIFF]--Lite
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]{Initial Haskell code: Sphere intersection}
+\begin{minted}{hs}
+intersect :: Ray -> Sphere -> Maybe Double
+intersect (Ray o d) (Sphere r p _e _c _refl) =
+  if det<0 then Nothing else f (b-sdet) (b+sdet)
+  where op = p - o
+        eps = 1e-4
+        b = dot op d
+        det = b*b - dot op op + r*r
+        sdet = sqrt det
+        f a s = if a>eps then Just a else if s>eps then Just s else Nothing
+intersects :: Ray -> (Maybe Double, Sphere)
+intersects ray = (k, s)
+  where (k,s) = foldl' f (Nothing,undefined) spheres
+        f (k',sp) s' = case (k',intersect ray s') of
+                  (Nothing,Just x) -> (Just x,s')
+                  (Just y,Just x) | x < y -> (Just x,s')
+                  _ -> (k',sp)
+\end{minted}
+\end{frame}
 
 \begin{frame}[fragile]{Initial Haskell Code: \texttt{radiance} ($1\times$) }
 % 620027b45e40e5a4b18f36cabc70efe803f41a61
@@ -388,11 +446,13 @@ radiance ray@(Ray o d) depth xi = case intersects ray of
             if cos2t<0
               then do
                 rad <- radiance reflRay depth' xi
+            ...
 \end{minted}
 % \raw{Sha256} hash of the output image --- \raw{4dac691082bb}
 \end{frame}
 
 \note{full code}
+
 
 
 \begin{frame}[fragile]{Initial Haskell Code: Entry point  ($1\times$)}
@@ -419,6 +479,7 @@ smallpt w h nsamps = do
             Vec rr rg rb <- readIORef r
             VM.unsafeWrite c i $ 
                 ci + Vec (clamp rr) (clamp rg) (clamp rb) .* 0.25 -- Write
+            ...
 \end{minted}
 \end{frame}
 
@@ -572,19 +633,29 @@ In this case it isn't much of a win, but it illustrates the technique.
 % 48aeb46
 \begin{minted}[fontsize=\small]{diff}
 -radiance :: Ray -> CInt -> Ptr CUShort -> IO Vec
-+radiance :: Ray -> Int -> IORef Word64 -> IO Vec
++radiance :: Ray -> Int -> IORef Word64 -> IO Vec -- IORef with state
  radiance ray@(Ray o d) depth xi = case intersects ray of
-   (Nothing,_) -> return zerov
-   (Just t,Sphere _r p e c refl) -> do
-@@ -153,9 +153,8 @@ smallpt w h nsamps = do
-       cx = Vec (fromIntegral w * 0.5135 / fromIntegral h) 0 0
-       cy = norm (cx `cross` dir) `mulvs` 0.5135
+   ...
    c <- VM.replicate (w * h) zerov
--  allocaArray 3 $ \xi ->
+-  allocaArray 3 $ \xi -> -- Old RNG state
 -      flip mapM_ [0..h-1] $ \y -> do
-+  xi <- newIORef 0
++  xi <- newIORef 0 -- New RNG state
 +  flip mapM_ [0..h-1] $ \y -> do
        writeXi xi y
+...
++writeXi :: IORef Word64 -> Int -> IO ()
++writeXi !xi !y = 
++  let ... ; prod = ... in writeIORef xi (prod `unsafeShiftL` 32)
+
++erand48 :: IORef Word64 -> IO Double
++erand48 !t =  do -- | Some number crunchy thing.
++  r <- readIORef t
++  let x' = 0x5deece66d * r + 0xb
++      d_word = 0x3ff0000000000000 .|. ((x' .&. 0xffffffffffff) `unsafeShiftL` 4)
++      d = castWord64ToDouble d_word - 1.0
++  writeIORef t x'
++  pure d
+...
 \end{minted}
 \end{frame}
 
